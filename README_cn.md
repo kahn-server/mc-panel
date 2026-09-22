@@ -62,19 +62,23 @@ KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台�
 ## 目录结构
 
 ```
-/home/mcserver/.mc_panel/
-├── app.py              # 面板主程序（单文件，含前端模板）
-├── preinstall.sh       # 一键部署脚本（含 MC 管理方式检测/确认）
+mc-panel/
+├── app.py              # 面板主程序（英文版，供海外用户）
+├── app_cn.py           # 面板主程序（中文版，国内用户请使用这个）
+├── preinstall.sh       # 一键部署脚本（英文版，部署后 ExecStart 指向 app.py）
+├── preinstall_cn.sh    # 一键部署脚本（中文版，部署后 ExecStart 指向 app_cn.py）
 ├── requirements.txt    # Python 依赖
 ├── gunicorn_config.py  # gunicorn 配置（proxy_protocol / cert）
-├── README.md           # 本文档
-├── README_en.md        # 英文版文档
-├── certs/              # HTTPS 证书 (cert.pem / key.pem)
+├── README.md           # 英文版文档
+├── README_cn.md        # 本文档（中文）
+├── certs/              # HTTPS 证书 (cert.pem / key.pem，部署时生成)
 ├── data/               # 面板数据
 ├── static/avatars/     # 玩家头像缓存
-├── users.json          # 面板登录用户（哈希存储）
-└── websockify.log      # websockify 日志
+├── users.json          # 面板登录用户（哈希存储，部署时生成）
+└── websockify.log      # websockify 日志（运行时生成）
 ```
+
+> ⚠️ **中文用户请使用 `app_cn.py` + `preinstall_cn.sh`**：中文部署脚本会自动创建指向 `app_cn.py` 的 systemd 单元（ExecStart 使用 `app_cn:app`），界面与提示均为中文；英文版仅供海外用户。
 
 ## 环境要求
 
@@ -85,15 +89,17 @@ KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台�
 
 ## 快速部署
 
-### 一键脚本
+### 一键脚本（中文版）
 
 ```bash
-cd /home/mcserver/.mc_panel
-sudo bash preinstall.sh              # 部署到当前用户
-sudo bash preinstall.sh mcserver     # 指定运行用户
-MCRCON_PASS=你的密码 sudo bash preinstall.sh   # 预置 RCON 密码（否则交互输入）
-MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall.sh  # 跳过交互，直接指定
+cd mc-panel
+sudo bash preinstall_cn.sh              # 部署到当前用户（中文交互，ExecStart 指向 app_cn.py）
+sudo bash preinstall_cn.sh mcserver     # 指定运行用户
+MCRCON_PASS=你的密码 sudo bash preinstall_cn.sh   # 预置 RCON 密码（否则交互输入）
+MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall_cn.sh  # 跳过交互，直接指定
 ```
+
+> 海外用户请使用 `preinstall.sh`（英文版，对应 `app.py`），见 [README.md](README.md)。
 
 脚本自动完成：系统依赖 → Python 依赖（`--user`）→ 目录结构 → HTTPS 自签证书 → **交互询问 frp 反向代理（不用 / PROXY v1 / PROXY v2）** → **询问单独备份目录（可留空）** → 生成 `SECRET_KEY` → **MC 管理方式自动检测 + 用户确认** → 环境变量合并写入 `mcpanel.service` 主单元 → **按 frp 模式生成 gunicorn 配置** → 配置运行用户 sudo 免密（`/etc/sudoers.d/mcpanel-<用户>`）→ 写 `mcpanel.service` → 启动服务。
 
