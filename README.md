@@ -203,17 +203,23 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 
 赛博仪表盘（独立项目：**[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**）由 `dashboard.sh` 脚本管理（`start`/`stop`），运行链：`Xvfb → dashboard.py → x11vnc:5900 → websockify:6080`（CPU 亲和由脚本按核心数自动分配，可用 `DASH_CPU_AFFINITY` 覆盖）。mcpanel 内置 WebSocket 代理（`/vnc-proxy` → 127.0.0.1:6080）在网页内展示画面。赛博面板源码、安装说明与配置模板见其仓库。
 
-## 界面入口（面板底部两个按钮）
+## 界面入口（面板底部两个隐藏按钮）
 
-- **🖥️ VNC 远程桌面**：网页内嵌 noVNC 客户端，实时查看赛博仪表盘画面（链路：`dashboard.sh start` 拉起 Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → 面板 `/vnc-proxy`）。**这是赛博面板联动的主入口**——不启动赛博面板时该画面为空/黑屏，先 `dashboard.sh start` 再进。
-- **🔧 恢复模式**：隐藏功能入口，进入后可用：
+面板底部有两个**可点击的隐藏按钮**：
+
+- **🖥️ VNC 远程桌面**——**独立功能界面**（路由 `/recovery/vnc`，但不属于恢复模式）：网页内嵌 noVNC 客户端，实时查看赛博仪表盘画面（链路：`dashboard.sh start` 拉起 Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → 面板 `/vnc-proxy`）。**这是赛博面板联动的主入口**——不启动赛博面板时画面为空/黑屏，先 `dashboard.sh start` 再进。
+- **🔧 恢复模式**——另一个隐藏按钮，点击进入（路由 `/recovery`），内含隐藏功能：
   - **Shell 终端**：网页内 xterm，直接在主机上执行命令
   - **世界回档**：从备份恢复世界存档
   - **插件管理**：浏览 / 上传 / 删除插件
   - **服务器图标**：预览 / 上传 / 下载 server-icon
   - **MOTD**：查看 / 修改服务器 motd
-  - **VNC**：恢复模式下的 VNC 画面
   - **重启主机**：远程重启整机（需 sudo 免密配置）
+
+其他可点击交互：
+
+- **头像裁剪**：个人资料页可点击，裁剪并上传头像
+- **实时状态**：默认每 10 秒自动刷新，按钮可点击手动刷新/切换
 
 ## 安全说明
 
