@@ -102,7 +102,7 @@ The script does: system deps → Python deps (`--user`) → directory layout →
 3. Answer `n` to enter manually: **type (systemd/screen/tmux)** + **service/session name**
 4. screen/tmux types additionally ask for the **launch command** (empty = auto-use `start.sh` in MC_DIR or the first jar)
 
-> frp V2 passthrough: gunicorn only parses PROXY v1 text headers. With V2, the script generates a gunicorn config bound to `127.0.0.1:8080` and prints mmproxy instructions (listen 8081, convert V2→v1).
+> frp V2 passthrough: gunicorn only parses PROXY v1 text headers. With V2, the script generates a gunicorn config bound to `127.0.0.1:8080` only, and prints mmproxy instructions (listen 8081, convert V2→v1). **Note: mmproxy is NOT installed with frp** — download the client mmproxy yourself and configure it in advance (systemd auto-start, listen on 127.0.0.1:8081, routing/forwarding rules). Deployment differs from the default; confirm mmproxy is ready before enabling V2.
 
 ### Manual Deploy (reference)
 
@@ -168,18 +168,33 @@ sudo systemctl show mcpanel.service | grep -i environment   # verify env vars
 
 ## frp Reverse Proxy
 
-`/usr/local/frp/frpc.toml`:
+Two connection modes (`remotePort` stays at your public port; 2224 in the examples):
+
+**Mode A: Direct (no mmproxy)** — frpc points straight at the panel port:
 
 ```toml
 [[proxies]]
 name = "mc_panel"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 8080
-remotePort = 2224
+localPort = 8080     # direct: panel gunicorn listening port
+remotePort = 2224    # public port, set per your frps config
 ```
 
-Public access: `https://<YOUR_VPS_PUBLIC_IP>:2224`. gunicorn uses `proxy_protocol=True` (with mmproxy) to pass real client IPs to the audit log.
+**Mode B: PROXY v2 (pass real client IPs to the audit log)** — frpc connects to local mmproxy first:
+
+```toml
+[[proxies]]
+name = "mc_panel"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8081     # mmproxy listening port (V2 in → v1 out → panel 8080)
+remotePort = 2224    # public port, set per your frps config
+```
+
+> The mmproxy client is **NOT installed with frp** — download it yourself and configure it in advance (systemd auto-start, listen on 127.0.0.1:8081, routing/forwarding rules). In direct mode the panel receives forwarded traffic directly; in V2 mode the panel listens on `127.0.0.1:8080` only and mmproxy delivers to it.
+
+Public access: `https://<YOUR_VPS_PUBLIC_IP>:2224`.
 
 ## Cyber Panel Integration
 
