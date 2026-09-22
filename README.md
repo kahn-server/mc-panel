@@ -207,7 +207,7 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 
 面板底部 footer 有**两个伪装成普通文字的隐藏触发器**，各自**连点 12 次**（间隔超时自动重置）后弹出**超级密码验证框**，验证通过后进入对应界面：
 
-- **“实时状态每10秒自动更新”**（footer 左侧文字）→ 连点 12 次 + 超级密码 → **VNC 远程桌面**（独立功能界面，路由 `/recovery/vnc`，不属于恢复模式）：网页内嵌 noVNC 客户端，实时查看赛博仪表盘画面（链路：`dashboard.sh start` 拉起 Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → 面板 `/vnc-proxy`）。**这是赛博面板联动的主入口**——不启动赛博面板时画面为空/黑屏，先 `dashboard.sh start` 再进。
+- **“实时状态每10秒自动更新”**（footer 左侧文字）→ 连点 12 次 + 超级密码 → **VNC 远程桌面**（独立功能界面，路由 `/recovery/vnc`，不属于恢复模式）：网页内嵌 noVNC 客户端，实时查看赛博仪表盘画面（链路：`dashboard.sh start` 拉起 Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → 面板 `/vnc-proxy`）。**这是赛博面板联动的主入口。必须先开启赛博面板**——使用 [Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard) 项目中的 `dashboard.sh start`；VNC 打开后若 **10 秒无画面会自动跳回恢复模式**（VNC 必须处于开启状态）。
 - **“头像裁剪”**（footer 右侧文字）→ 连点 12 次 + 超级密码 → **恢复模式**（路由 `/recovery`），内含隐藏功能：
   - **Shell 终端**：网页内 xterm，直接在主机上执行命令
   - **世界回档**：从备份恢复世界存档
