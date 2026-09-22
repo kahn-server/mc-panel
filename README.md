@@ -1,120 +1,135 @@
-# KT-Anar Minecraft 管理面板 (mcpanel)
+# MCPanel — Minecraft Server Web Panel
 
-KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台、恢复模式、插件管理、赛博面板画面嵌入。
+> A modern, lightweight web panel for managing Minecraft servers: **live monitoring, RCON console, recovery mode, plugin & backup management, and a Cyberpunk-dashboard screen** — all in your browser.
 
-## 功能特性
+**English** | [简体中文](README_cn.md)
 
-- **实时监控**
-  - 玩家在线/最大人数：原生 `minecraft:list` 命令（失败自动回退 `list`），宽松正则兼容中英文输出（`X of a max of Y` / `X/Y` / `当前有 X 位玩家在线…`）
-  - TPS：Paper 原生 `tps` 命令（不依赖 Essentials 等插件）
-  - JVM 堆内存：原生 `/gc` 输出解析（最大 / 已分配 / 空闲）
-  - 服务器运行时长：读取 java 进程 `/proc/<pid>/stat` 的 starttime（纯系统级，不依赖任何命令/插件），日志 `Done (` 行作回退
-  - 系统 CPU / 内存 / 磁盘
-- **RCON 控制台**：网页直接执行任意命令
-  - 纯 socket 手搓客户端（内嵌 `RCONClient`），无第三方二进制、无 `signal.alarm` 子线程坑
-- **服务器控制**
-  - 启动 / 停止 / **⚡ 快速重启** / 状态刷新
-  - 快速重启：systemd 直接执行 `systemctl restart`（单事务，**不拆 stop+start**）；screen/tmux 无 restart 命令，合成"停止→等世界保存→启动"
-  - 服务端核心升级后：上传新 jar 替换完成，确认框直接走快速重启（同样 `systemctl restart`）
-- **恢复模式**：socket 心跳校验，无效连接所有字段返回 `Error`；3 秒实时推送
-- **插件目录管理**：浏览 / 上传 / 删除插件（路径越界防护 + 文件魔数校验）
-- **备份管理**：列表只显示常见压缩格式（`.zip` / `.gz` / `.tar` / `.tar.gz` / `.tgz` / `.7z` / `.rar` / `.bz2` / `.xz` / `.zst`），其余文件不显示；支持下载备份。**备份目录自动创建**：未设置 `MC_BACKUP_ROOT` 时自动建 `${MC_DIR}/backups`，并在其中自动建 `plugins_bak` / `server_jar_bak` 两个子目录（插件删除备份、服务端核心替换备份）
-- **服务端核心管理**：自动识别 MC 目录中任意命名的服务端 jar（`server.jar` / `paper-*.jar` / `spigot.jar` 等），支持上传替换（旧核心自动备份）
-- **多启动方式兼容（systemd / screen / tmux）**
-  - **检测逻辑全部在安装脚本（preinstall.sh）**：安装时自动检测 MC 管理方式（systemd 服务单元 → screen 会话 → tmux 会话），经用户确认后写入环境变量 `MC_LAUNCH_TYPE` / `MC_SERVICE_NAME`
-  - **面板不再执行任何探测命令**（无 `screen -ls` / `tmux ls` / `systemctl list-unit-files` 扫描），直接从环境变量读取
-  - screen/tmux 的启动命令由安装脚本询问（`MC_LAUNCH_CMD`，默认沿用 MC_DIR 下的 `start.sh` 或第一个 jar）
-- **赛博面板嵌入**：网页内实时查看赛博仪表盘画面（`/vnc-proxy` WebSocket 代理 → 本地 websockify :6080，websockify 由 `dashboard.sh` 脚本管理）
-- **审计日志**：记录真实客户端 IP（PROXY protocol 透传）、登录与命令操作
-- **HTTPS**：自签名证书（gunicorn 直接 TLS 终止）
+![Python](https://img.shields.io/badge/python-3.8+-00d4ff) ![Flask](https://img.shields.io/badge/flask-3.0.3-000000) ![HTTPS](https://img.shields.io/badge/https-self--signed-4cc61e) ![License](https://img.shields.io/badge/license-MIT-ff2d95)
 
-## 技术栈
+**Highlights**
 
-| 组件 | 版本 | 说明 |
+- ⚡ One-click deploy (`preinstall.sh`) — auto-detects your MC launch method (systemd / screen / tmux)
+- 🖥️ Live status every 10s: players (native `minecraft:list`), TPS, JVM heap, uptime, CPU/RAM/disk
+- ⌨️ In-browser RCON console — pure-socket client, **no mcrcon binary**
+- 🔄 **Quick Restart** button + automatic restart after server-core upgrade
+- 🔐 HTTPS (self-signed) + audit log with real client IP (PROXY protocol)
+- 🧩 Plugin manager, backup manager (auto-created backup dirs), server-jar manager (any file name)
+- 🌆 Embedded Cyberpunk MC Dashboard via in-page VNC (noVNC) — see below
+
+## Features
+
+- **Live monitoring**
+  - Online/max players: native `minecraft:list` command (auto-fallback to `list`), loose regex handles both Chinese and English output (`X of a max of Y` / `X/Y` / `当前有 X 位玩家在线…`)
+  - TPS: Paper native `tps` command (no Essentials dependency)
+  - JVM heap: native `/gc` output parsing (max / allocated / free)
+  - Server uptime: reads `/proc/<pid>/stat` starttime of the java process (pure system-level, no commands/plugins), falls back to the `Done (` line in logs
+  - System CPU / memory / disk
+- **RCON console**: run any command from the web page
+  - Pure socket hand-written client (embedded `RCONClient`), no third-party binary, no `signal.alarm` sub-thread pitfalls
+- **Server control**
+  - Start / Stop / **⚡ Quick Restart** / Refresh status
+  - Quick restart: systemd executes `systemctl restart` directly (single transaction, **not stop+start**); screen/tmux has no restart command, so it composites stop → wait for world save → start
+  - After server-core upgrade: once the new jar is uploaded and replaced, the confirm dialog triggers quick restart directly (same `systemctl restart`)
+- **Recovery mode**: socket heartbeat validation, invalid connections return `Error` for all fields; 3-second real-time push
+- **Plugin management**: browse / upload / delete plugins (path-traversal protection + file magic-number validation)
+- **Backup management**: list only shows common archive formats (`.zip` / `.gz` / `.tar` / `.tar.gz` / `.tgz` / `.7z` / `.rar` / `.bz2` / `.xz` / `.zst`); other files hidden; download supported. **Backup dir auto-created**: when `MC_BACKUP_ROOT` is unset, creates `${MC_DIR}/backups` with `plugins_bak` / `server_jar_bak` subdirs (plugin-delete backups, server-jar-replacement backups)
+- **Server core management**: auto-detects any server jar name in the MC dir (`server.jar` / `paper-*.jar` / `spigot.jar` etc.), supports upload-replace (old core auto-backed up)
+- **Multi-launcher compatibility (systemd / screen / tmux)**
+  - **All detection lives in the installer (preinstall.sh)**: at install time it auto-detects the MC management type (systemd unit → screen session → tmux session), asks the user to confirm, then injects `MC_LAUNCH_TYPE` / `MC_SERVICE_NAME` env vars
+  - **The panel runs zero probe commands** (no `screen -ls` / `tmux ls` / `systemctl list-unit-files` scans), it only reads the env vars
+  - screen/tmux launch command is asked by the installer (`MC_LAUNCH_CMD`, defaults to `start.sh` under MC_DIR or the first jar)
+- **Cyber-panel embedding**: view the Cyber dashboard live in the page (WebSocket proxy `/vnc-proxy` → local websockify :6080; websockify is managed by the `dashboard.sh` script)
+- **Audit log**: records real client IP (PROXY protocol passthrough), logins and command operations
+- **HTTPS**: self-signed cert (gunicorn terminates TLS directly)
+
+## Tech Stack
+
+| Component | Version | Note |
 |---|---|---|
-| Flask | 3.0.3 | Web 框架 |
-| Flask-SocketIO | 5.6.1 | 实时推送（async_mode=eventlet） |
-| Flask-Limiter | 3.8.0 | 登录限流 |
-| gunicorn | 23.0.0 | 生产服务器（eventlet worker，`proxy_protocol=True`） |
-| eventlet | 0.39.1 | 协程 worker |
-| websockify | 0.13.0 | VNC → WebSocket（赛博面板嵌入） |
-| systemd | - | 服务托管 + 环境变量注入（主单元） |
+| Flask | 3.0.3 | Web framework |
+| Flask-SocketIO | 5.6.1 | Real-time push (async_mode=eventlet) |
+| Flask-Limiter | 3.8.0 | Login rate limiting |
+| gunicorn | 23.0.0 | Production server (eventlet worker, `proxy_protocol=True`) |
+| eventlet | 0.39.1 | Coroutine worker |
+| websockify | 0.13.0 | VNC → WebSocket (Cyber panel) |
+| systemd | - | Service hosting + env injection (main unit) |
 
-## 架构
+## Architecture
 
 ```
-客户端浏览器 (HTTPS)
-      │  <VPS公网IP>:8080 (frp) → 127.0.0.1:8080
+Client browser (HTTPS)
+      │  <VPS_PUBLIC_IP>:8080 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
 │  gunicorn (eventlet)        │
 │  ┌───────────────────────┐  │
 │  │ app.py (Flask + SIO)  │  │
-│  │  RCONClient(纯socket) │──┼──► MC 服务器 RCON 127.0.0.1:25575
-│  │  控制: systemctl/screen/tmux │──┼──► MC 进程（按 MC_LAUNCH_TYPE 路由）
+│  │  RCONClient(socket)   │──┼──► MC RCON 127.0.0.1:25575
+│  │  control: systemctl/  │──┼──► MC process (routed by MC_LAUNCH_TYPE)
+│  │    screen/tmux        │  │
 │  └───────────────────────┘  │
-│  websockify :6080 ──────────┼──► x11vnc :5900 ◄── 赛博面板(Xvfb+dashboard.py)
+│  websockify :6080 ──────────┼──► x11vnc :5900 ◄── Cyber panel (Xvfb+dashboard.py)
 └─────────────────────────────┘
 ```
 
-## 目录结构
+## Directory Layout
 
 ```
 /home/mcserver/.mc_panel/
-├── app.py              # 面板主程序（单文件，含前端模板）
-├── preinstall.sh       # 一键部署脚本（含 MC 管理方式检测/确认）
-├── requirements.txt    # Python 依赖
-├── gunicorn_config.py  # gunicorn 配置（proxy_protocol / cert）
-├── README.md           # 本文档
-├── README_en.md        # 英文版文档
-├── certs/              # HTTPS 证书 (cert.pem / key.pem)
-├── data/               # 面板数据
-├── static/avatars/     # 玩家头像缓存
-├── users.json          # 面板登录用户（哈希存储）
-└── websockify.log      # websockify 日志
+├── app.py              # Main program (single file, includes frontend template)
+├── preinstall.sh       # One-click installer (incl. MC management-type detection/confirm)
+├── requirements.txt    # Python deps
+├── gunicorn_config.py  # gunicorn config (proxy_protocol / cert)
+├── README.md           # This document
+├── README_en.md        # English version
+├── certs/              # HTTPS certs (cert.pem / key.pem)
+├── data/               # Panel data
+├── static/avatars/     # Player avatar cache
+├── users.json          # Panel users (hashed)
+└── websockify.log      # websockify log
 ```
 
-## 环境要求
+## Requirements
 
-- Ubuntu / Debian（基于 apt）
+- Ubuntu / Debian (apt-based)
 - Python 3.8+
-- 运行用户（生产为 `mcserver`），依赖以 `--user` 安装
-- MC 服务器开启 RCON（`server.properties`：`enable-rcon=true`，端口 25575）
+- Runtime user (production: `mcserver`), deps installed with `--user`
+- MC server must enable RCON (`server.properties`: `enable-rcon=true`, port 25575)
 
-## 快速部署
+## Quick Deploy
 
-### 一键脚本
+### One-click script
 
 ```bash
 cd /home/mcserver/.mc_panel
-sudo bash preinstall.sh              # 部署到当前用户
-sudo bash preinstall.sh mcserver     # 指定运行用户
-MCRCON_PASS=你的密码 sudo bash preinstall.sh   # 预置 RCON 密码（否则交互输入）
-MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall.sh  # 跳过交互，直接指定
+sudo bash preinstall.sh              # deploy to current user
+sudo bash preinstall.sh mcserver     # specify runtime user
+MCRCON_PASS=your_password sudo bash preinstall.sh   # preset RCON password (interactive otherwise)
+MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall.sh  # skip prompts, set directly
 ```
 
-脚本自动完成：系统依赖 → Python 依赖（`--user`）→ 目录结构 → HTTPS 自签证书 → **交互询问 frp 反向代理（不用 / PROXY v1 / PROXY v2）** → **询问单独备份目录（可留空）** → 生成 `SECRET_KEY` → **MC 管理方式自动检测 + 用户确认** → 环境变量合并写入 `mcpanel.service` 主单元 → **按 frp 模式生成 gunicorn 配置** → 配置运行用户 sudo 免密（`/etc/sudoers.d/mcpanel-<用户>`）→ 写 `mcpanel.service` → 启动服务。
+The script does: system deps → Python deps (`--user`) → directory layout → self-signed HTTPS cert → **frp reverse-proxy prompt (none / PROXY v1 / PROXY v2)** → **separate backup-dir prompt (may leave empty)** → generate `SECRET_KEY` → **MC management-type auto-detect + user confirm** → env vars merged into the `mcpanel.service` main unit → **gunicorn config per frp mode** → sudoers no-password rules (`/etc/sudoers.d/mcpanel-<user>`) → write `mcpanel.service` → start.
 
-**MC 管理方式交互流程**：
-1. 脚本自动检测：systemd 服务单元（`minecraft`/`paper`/`spigot`/`purpur`/`bukkit`/`mc`）→ screen 会话 → tmux 会话
-2. 显示检测结果 `[systemd] 名称: [minecraft]`，询问"确认使用这个结果吗？(Y/n)"
-3. 选 `n` 则手动填写：**管理类型（systemd/screen/tmux）** + **服务名/会话名**
-4. screen/tmux 类型额外询问**启动命令**（留空自动使用 MC_DIR 下的 `start.sh` 或第一个 jar）
+**MC management-type flow**:
+1. Auto-detect: systemd units (`minecraft`/`paper`/`spigot`/`purpur`/`bukkit`/`mc`) → screen sessions → tmux sessions
+2. Show result `[systemd] name: [minecraft]`, ask "confirm this result? (Y/n)"
+3. Answer `n` to enter manually: **type (systemd/screen/tmux)** + **service/session name**
+4. screen/tmux types additionally ask for the **launch command** (empty = auto-use `start.sh` in MC_DIR or the first jar)
 
-> frp V2 穿透说明：gunicorn 只解析 PROXY v1 文本头。若启用 V2，脚本会生成仅监听 `127.0.0.1:8080` 的 gunicorn 配置，并提示在 frp 与面板之间加 mmproxy（监听 8081 把 V2 转 v1）。**注意：mmproxy 不会随 frp 自动安装**——需自行下载客户端 mmproxy，并提前手动配置好（systemd 开机自启、监听 127.0.0.1:8081、路由/转发规则）。部署方式与默认不同，请先确认 mmproxy 已就绪再启用 V2。
+> frp V2 passthrough: gunicorn only parses PROXY v1 text headers. With V2, the script generates a gunicorn config bound to `127.0.0.1:8080` only, and prints mmproxy instructions (listen 8081, convert V2→v1). **Note: mmproxy is NOT installed with frp** — download the client mmproxy yourself and configure it in advance (systemd auto-start, listen on 127.0.0.1:8081, routing/forwarding rules). Deployment differs from the default; confirm mmproxy is ready before enabling V2.
 
-### 手动部署（参考）
+### Manual Deploy (reference)
 
 ```bash
-# 依赖
+# deps
 sudo apt-get update -y
 sudo apt-get install -y python3 python3-pip python3-dev build-essential libssl-dev libffi-dev xvfb x11vnc
 sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 
-# 证书（没有则生成）
+# cert (generate if missing)
 cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=kt-anar-panel'
 
-# 环境变量：直接写进 mcpanel.service 主单元 [Service] 段
+# Env vars go directly into the mcpanel.service main unit [Service] section
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
 [Unit]
 Description=KT-Anar Minecraft Management Panel
@@ -124,8 +139,8 @@ After=network.target
 User=mcserver
 Group=mcserver
 WorkingDirectory=/home/mcserver/.mc_panel
-Environment="SECRET_KEY=<新生成的密钥>"
-Environment="MCRCON_PASS=<RCON密码>"
+Environment="SECRET_KEY=<generated key>"
+Environment="MCRCON_PASS=<RCON password>"
 Environment="MC_DIR=/data/minecraft_server"
 Environment="MC_LAUNCH_TYPE=systemd"
 Environment="MC_SERVICE_NAME=minecraft"
@@ -140,111 +155,111 @@ EOF
 sudo systemctl daemon-reload && sudo systemctl enable --now mcpanel.service
 ```
 
-## 环境变量
+## Environment Variables
 
-| 变量 | 必填 | 说明 |
+| Variable | Required | Note |
 |---|---|---|
-| `SECRET_KEY` | ✅ | Flask 会话签名密钥（64 位 hex）。**更换后所有已登录 Cookie 失效，需重新登录一次** |
-| `MCRCON_PASS` | ✅ | MC 服务器 RCON 密码。缺失时面板拒绝启动（`RuntimeError`） |
-| `MC_DIR` | 可选 | MC 服务端目录，默认 `/data/minecraft_server` |
-| `MC_BACKUP_ROOT` | 可选 | 备份根目录，默认 `${MC_DIR}/backups` |
-| `MC_LOG_DIR` | 可选 | 面板自身日志目录，默认 `/data/mc_panel_logs` |
-| `MC_SERVICE_NAME` | 可选 | MC 的 systemd 服务名 / screen / tmux 会话名（**由 preinstall.sh 检测确认后注入**，默认 `minecraft`） |
-| `MC_LAUNCH_TYPE` | ✅ | MC 管理方式：`systemd` / `screen` / `tmux`。**由 preinstall.sh 检测确认后注入；面板不再自行探测**。未设置时面板无法判断启动方式 |
-| `MC_LAUNCH_CMD` | 可选 | screen/tmux 类型的启动命令（如 `bash start.sh`）。留空自动用 MC_DIR 下 `start.sh` 或第一个 jar |
+| `SECRET_KEY` | ✅ | Flask session signing key (64-hex). **Changing it invalidates all logged-in cookies once** |
+| `MCRCON_PASS` | ✅ | MC RCON password. Panel refuses to start if missing (`RuntimeError`) |
+| `MC_DIR` | optional | MC server dir, default `/data/minecraft_server` |
+| `MC_BACKUP_ROOT` | optional | Backup root, default `${MC_DIR}/backups` |
+| `MC_LOG_DIR` | optional | Panel log dir, default `/data/mc_panel_logs` |
+| `MC_SERVICE_NAME` | optional | MC systemd service / screen / tmux session name (**detected+confirmed by preinstall.sh**, default `minecraft`) |
+| `MC_LAUNCH_TYPE` | ✅ | MC management type: `systemd` / `screen` / `tmux`. **Injected by preinstall.sh after detection+confirm; the panel never probes itself**. Unset ⇒ panel cannot determine launch method |
+| `MC_LAUNCH_CMD` | optional | Launch command for screen/tmux (e.g. `bash start.sh`). Empty ⇒ auto-use `start.sh` or the first jar under MC_DIR |
 
-`SECRET_KEY` / `MCRCON_PASS` 及全部 MC 配置均由 **mcpanel.service 主单元 `[Service]` 段的 `Environment=` 注入**（preinstall.sh 直接写入主单元），代码中**不存在任何明文密钥与硬编码路径**。改路径只需改主单元后 `daemon-reload` + 重启。
+`SECRET_KEY` / `MCRCON_PASS` and all MC config are injected via `Environment=` in the **mcpanel.service main unit `[Service]` section** (preinstall.sh writes directly to the main unit). The code contains **no plaintext keys or hardcoded paths**. To change paths, edit the main unit, then `daemon-reload` + restart.
 
-## 服务管理
+## Service Management
 
 ```bash
-systemctl status mcpanel.service       # 状态
-journalctl -u mcpanel.service -f       # 实时日志
-journalctl -u mcpanel.service -n 50    # 最近 50 行
-systemctl restart mcpanel.service      # 重启
-sudo systemctl show mcpanel.service | grep -i environment   # 确认环境变量
+systemctl status mcpanel.service       # status
+journalctl -u mcpanel.service -f       # live logs
+journalctl -u mcpanel.service -n 50    # last 50 lines
+systemctl restart mcpanel.service      # restart
+sudo systemctl show mcpanel.service | grep -i environment   # verify env vars
 ```
 
-## frp 反向代理
+## frp Reverse Proxy
 
-**先判断你的情况**：
+**Decide your scenario first**:
 
-- **服务器有公网 IP，或不需要审计日志（真实客户端 IP）** → frp / mmproxy 都不需要：安装时 frp 选项直接选 **none**，面板端口直连即可。
-- **需要 frp 转发，但不需要真实客户端 IP** → 方式 A 直连。
-- **需要 frp 转发 + 审计真实客户端 IP** → 方式 B（mmproxy + PROXY v2）。
+- **Your server has a public IP, or you don't need audit logs (real client IPs)** → neither frp nor mmproxy is needed: pick **none** for the frp option during install and reach the panel port directly.
+- **Need frp forwarding, but no real client IPs** → Mode A (direct).
+- **Need frp forwarding + audit real client IPs** → Mode B (mmproxy + PROXY v2).
 
-**方式 A：直连（无代理）**：
+**Mode A: Direct (no proxy)**:
 
 ```toml
 [[proxies]]
 name = "mc_panel"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 8080     # 面板 gunicorn 监听端口
-remotePort = 8080    # 公网端口，按你的 frps 配置填写
+localPort = 8080     # panel gunicorn listening port
+remotePort = 8080    # public port, set per your frps config
 ```
 
-**方式 B：PROXY v2（透传真实客户端 IP 到审计日志）**：
+**Mode B: PROXY v2 (pass real client IPs to the audit log)**:
 
 ```toml
 [[proxies]]
 name = "mc_panel"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 8081     # 本机 mmproxy 监听端口
-remotePort = 8080    # 公网端口，按你的 frps 配置填写
+localPort = 8081     # local mmproxy listening port
+remotePort = 8080    # public port, set per your frps config
 ```
 
-> mmproxy 配置示例：mmproxy 监听 `127.0.0.1:8081`，把收到的 PROXY v2 转成 v1 后连接到面板 `127.0.0.1:8080`。mmproxy **不随 frp 自动安装**，需要自行下载源码编译并配置（systemd 开机自启、监听/转发规则等），详细编译与配置教程请自行搜索（关键词：mmproxy）。
+> mmproxy example: listen on `127.0.0.1:8081`, convert incoming PROXY v2 to v1 and connect to the panel `127.0.0.1:8080`. mmproxy is **NOT installed with frp** — download and compile the source yourself, then configure it (systemd auto-start, listen/forward rules, etc.). For full compile & setup guides, search on your own (keyword: mmproxy).
 
-公网访问：`https://<你的VPS公网IP>:8080`。
+Public access: `https://<YOUR_VPS_PUBLIC_IP>:8080`.
 
-## 赛博面板联动
+## Cyber Panel Integration
 
-赛博仪表盘（独立项目：**[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**）由 `dashboard.sh` 脚本管理（`start`/`stop`），运行链：`Xvfb → dashboard.py → x11vnc:5900 → websockify:6080`（CPU 亲和由脚本按核心数自动分配，可用 `DASH_CPU_AFFINITY` 覆盖）。mcpanel 内置 WebSocket 代理（`/vnc-proxy` → 127.0.0.1:6080）在网页内展示画面。赛博面板源码、安装说明与配置模板见其仓库。
+The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**) is managed by the `dashboard.sh` script (`start`/`stop`). Run chain: `Xvfb → dashboard.py → x11vnc:5900 → websockify:6080` (CPU affinity is auto-assigned by the script based on core count; override with `DASH_CPU_AFFINITY`). mcpanel embeds it in the page via a WebSocket proxy (`/vnc-proxy` → 127.0.0.1:6080). Source code, setup guide and config template live in its repository.
 
-## 界面入口（面板底部两个隐藏触发器）
+## Interface Entry (two hidden triggers at the bottom of the panel)
 
-面板底部 footer 有**两个伪装成普通文字的隐藏触发器**，各自**连点 12 次**（间隔超时自动重置）后弹出**超级密码验证框**，验证通过后进入对应界面：
+The panel footer has **two hidden triggers disguised as plain text**. Each requires **12 rapid clicks** (the counter auto-resets on timeout) to pop up the **super-password dialog**; entering the correct super password opens the corresponding interface:
 
-- **“实时状态每10秒自动更新”**（footer 左侧文字）→ 连点 12 次 + 超级密码 → **VNC 远程桌面**（独立功能界面，路由 `/recovery/vnc`，不属于恢复模式）：网页内嵌 noVNC 客户端，实时查看赛博仪表盘画面（链路：`dashboard.sh start` 拉起 Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → 面板 `/vnc-proxy`）。**这是赛博面板联动的主入口。必须先开启赛博面板**——使用 [Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard) 项目中的 `dashboard.sh start`；VNC 打开后若 **10 秒无画面会自动跳回恢复模式**（VNC 必须处于开启状态）。
-- **“头像裁剪”**（footer 右侧文字）→ 连点 12 次 + 超级密码 → **恢复模式**（路由 `/recovery`），内含隐藏功能：
-  - **Shell 终端**：网页内 xterm，直接在主机上执行命令
-  - **世界回档**：从备份恢复世界存档
-  - **插件管理**：浏览 / 上传 / 删除插件
-  - **服务器图标**：预览 / 上传 / 下载 server-icon
-  - **MOTD**：查看 / 修改服务器 motd
-  - **重启主机**：远程重启整机（需 sudo 免密配置）
+- **“实时状态每10秒自动更新” (“Live status updates every 10s”)** — footer left text → 12 clicks + super password → **VNC Remote Desktop** (standalone interface, route `/recovery/vnc`, NOT part of recovery mode): embedded noVNC client showing the Cyber dashboard live (chain: `dashboard.sh start` brings up Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → panel `/vnc-proxy`). **This is the main entry for Cyber-panel integration. The Cyber dashboard MUST be started first** — use `dashboard.sh start` from the [Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard) project; if the VNC screen has **no picture for 10 seconds it auto-redirects back to recovery mode** (VNC must be running).
+- **“头像裁剪” (“Avatar crop”)** — footer right text → 12 clicks + super password → **Recovery Mode** (route `/recovery`). Hidden features inside:
+  - **Shell terminal**: in-page xterm to run commands on the host directly
+  - **World rollback**: restore the world from backups
+  - **Plugin management**: browse / upload / delete plugins
+  - **Server icon**: preview / upload / download server-icon
+  - **MOTD**: view / edit the server motd
+  - **Host reboot**: remote reboot of the whole machine (needs passwordless sudo setup)
 
-> footer 上这两个文案是**伪装触发器**，并非字面功能：真正的手动刷新/头像裁剪不在这里（头像裁剪位于个人资料弹窗内）。
+> The two footer texts are **disguised triggers**, not literal features: manual refresh / avatar cropping do not live here (avatar cropping is inside the profile dialog).
 
-## 安全说明
+## Security Notes
 
-- 密钥零硬编码：`SECRET_KEY` / `MCRCON_PASS` 仅存在于 mcpanel.service 主单元（root 可读）
-- 登录限流：Flask-Limiter + 超级密码 IP 限流（24h 窗口 5 次失败锁定）
-- 插件上传：路径越界防护 + 文件魔数校验
-- 会话 Cookie：`SECRET_KEY` 签名，更换密钥即全员下线
-- 建议定期轮换 `SECRET_KEY`（换一次，所有人重新登录）
+- Zero hardcoded keys: `SECRET_KEY` / `MCRCON_PASS` live only in the mcpanel.service main unit (root-readable)
+- Login rate limiting: Flask-Limiter + super-password IP limiting (5 failures locked for 24h)
+- Plugin upload: path-traversal protection + file magic-number validation
+- Session cookie: signed with `SECRET_KEY`; rotating the key logs everyone out
+- Rotate `SECRET_KEY` periodically (one change = everyone re-logins)
 
-## 故障排查
+## Troubleshooting
 
-| 症状 | 排查 |
+| Symptom | Check |
 |---|---|
-| 服务起不来，报 `环境变量 MCRCON_PASS 未设置` | mcpanel.service 主单元 Environment 没写对或没 `daemon-reload` |
-| 服务起不来，报 `环境变量 SECRET_KEY 未设置` | 同上 |
-| 面板显示服务器未运行 / "未检测到 MC 启动方式" | `MC_LAUNCH_TYPE` 未设置或与实际情况不符。查看：`systemctl show mcpanel.service \| grep MC_LAUNCH`；与实际不符时改主单元环境变量后重启，或重跑 `preinstall.sh` 重新检测确认 |
-| screen/tmux 启动方式但起不来 | 确认 `MC_SERVICE_NAME` 是实际会话名、`MC_LAUNCH_CMD` 正确（默认 `start.sh` 或第一个 jar）；会话是其他用户启动的面板可能无权限操作 |
-| 玩家数 / TPS 显示异常 | `minecraft:list` / `tps` 为原生命令，确认服务端是 Paper/Spigot 系 |
-| 备份列表少了文件 | 只显示常见压缩格式（zip/gz/tar/7z 等），非压缩文件不会列出 |
-| 网页看不到赛博面板 | `dashboard.sh start`，确认 x11vnc:5900 与 websockify:6080 均在监听 |
-| 审计日志 IP 全是 127.0.0.1 | 确认 gunicorn_config.py 的 `proxy_protocol=True` 与 frp mmproxy 配置 |
+| Service won't start, `环境变量 MCRCON_PASS 未设置` | Environment lines in mcpanel.service wrong, or no `daemon-reload` |
+| Service won't start, `环境变量 SECRET_KEY 未设置` | Same as above |
+| Panel shows server not running / "未检测到 MC 启动方式" | `MC_LAUNCH_TYPE` unset or mismatched. Check: `systemctl show mcpanel.service \| grep MC_LAUNCH`; fix the main unit env and restart, or re-run `preinstall.sh` |
+| screen/tmux type but won't start | Verify `MC_SERVICE_NAME` is the real session name and `MC_LAUNCH_CMD` is correct (default `start.sh` or first jar); a session owned by another user may not be controllable by the panel user |
+| Player count / TPS looks wrong | `minecraft:list` / `tps` are native commands; confirm the server is Paper/Spigot-based |
+| Backups list missing files | Only common archives are shown (zip/gz/tar/7z etc.); non-archives are hidden |
+| Cyber panel not visible | `dashboard.sh start`; confirm x11vnc:5900 and websockify:6080 are listening |
+| Audit log shows only 127.0.0.1 | Confirm `proxy_protocol=True` in gunicorn_config.py and the frp mmproxy setup |
 
-## 变更记录
+## Changelog
 
-- **2026-09-23**：赛博面板联动改为独立脚本 `dashboard.sh` 管理（websockify 不再由面板自动拉起，移除死代码 `start_websockify`）；CPU 亲和改为按核心数自动计算（面板绑定末两位核心），支持 `PANEL_CPU_AFFINITY` / `DASH_CPU_AFFINITY` 环境变量覆盖
-- **2026-09-22**：检测逻辑彻底移出面板——`detect_mc_launcher` 改为纯读 `MC_LAUNCH_TYPE` 环境变量（不再执行 systemctl/screen/tmux 任何探测）；preinstall.sh 新增管理方式自动检测（systemd→screen→tmux）+ 用户确认 + 手动填写（类型/服务名/screen·tmux 启动命令 `MC_LAUNCH_CMD`）；新增 **⚡ 快速重启**（systemd 直接 `systemctl restart`，不拆 stop/start）与服务端升级后直接重启；环境变量合并进 mcpanel.service 主单元
-- **2026-09-21（四）**：服务名与备份目录兜底——`MC_SERVICE_NAME` 未设置时自动扫描 systemd 服务识别 MC 服务；preinstall.sh 自动检测服务名；备份目录未指定时脚本自动建默认备份目录及 `plugins_bak`/`server_jar_bak` 子目录
-- **2026-09-21（三）**：通用化改造——备份列表只显示常见压缩格式；服务端 jar 任意命名识别（`find_server_jar`）；MC 启动方式自动检测（systemd/screen/tmux）；preinstall.sh 新增 frp 反向代理询问（none/v1/v2）与单独备份目录询问，gunicorn 配置按 frp 模式生成
-- **2026-09-21（二）**：MC 目录配置化——`MC_DIR`/`MC_BACKUP_ROOT`/`MC_LOG_DIR` 改环境变量读取，preinstall.sh 自动注入并新增 sudo 免密配置段
-- **2026-09-21（一）**：RCON 全面重构——移除 `mcrcon` 二进制，内嵌纯 socket `RCONClient`；玩家列表改原生 `minecraft:list`；TPS 改原生命令解析；运行时长改进程级 `/proc` starttime；`SECRET_KEY`/`MCRCON_PASS` 环境变量化
-- **2026-09-19**：gunicorn + eventlet 生产化、真实 IP 透传、3 秒轮询、恢复模式 socket 校验、插件目录管理、赛博面板嵌入
+- **2026-09-23**: Cyber-panel integration moved to standalone `dashboard.sh` management (websockify is no longer auto-started by the panel; dead code `start_websockify` removed); CPU affinity now auto-computed from core count (panel pinned to the last two cores), overridable via `PANEL_CPU_AFFINITY` / `DASH_CPU_AFFINITY`
+- **2026-09-22**: Detection moved out of the panel — `detect_mc_launcher` now only reads `MC_LAUNCH_TYPE` (zero systemctl/screen/tmux probes); preinstall.sh added management-type auto-detect (systemd→screen→tmux) + user confirm + manual entry (type/name/screen·tmux launch cmd `MC_LAUNCH_CMD`); added **⚡ Quick Restart** (systemd `systemctl restart` directly, not stop+start) and direct restart after server-core upgrade; env vars merged into the mcpanel.service main unit
+- **2026-09-21 (4)**: Service-name & backup-dir fallbacks — auto-scan systemd services when `MC_SERVICE_NAME` unset; preinstall.sh auto-detects the service name; auto-creates default backup dir with `plugins_bak`/`server_jar_bak` subdirs
+- **2026-09-21 (3)**: Generalization — backup list shows only common archives; any-named server jar detection (`find_server_jar`); MC launcher auto-detect (systemd/screen/tmux); preinstall.sh frp prompt (none/v1/v2) and separate backup-dir prompt, gunicorn config per frp mode
+- **2026-09-21 (2)**: MC dirs configurable — `MC_DIR`/`MC_BACKUP_ROOT`/`MC_LOG_DIR` as env vars, preinstall.sh injects them and adds sudoers no-password rules
+- **2026-09-21 (1)**: RCON rewrite — removed `mcrcon` binary, embedded pure-socket `RCONClient`; native `minecraft:list` player list; native TPS parsing; process-level `/proc` uptime; `SECRET_KEY`/`MCRCON_PASS` env-var-ized
+- **2026-09-19**: gunicorn + eventlet production, real-IP passthrough, 3s polling, recovery-mode socket validation, plugin management, Cyber-panel embedding
