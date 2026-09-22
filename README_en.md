@@ -183,7 +183,7 @@ Public access: `https://47.105.86.27:2224`. gunicorn uses `proxy_protocol=True` 
 
 ## Cyber Panel Integration
 
-The Cyber dashboard (separate project, managed by `dashboard.sh`) runs: `Xvfb → dashboard.py(CPU 6,7) → x11vnc:5900 → websockify:6080`. mcpanel auto-starts websockify via `start_websockify()`; the dashboard is embedded in the page.
+The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**, managed by `dashboard.sh`) runs: `Xvfb → dashboard.py(CPU 6,7) → x11vnc:5900 → websockify:6080`. mcpanel auto-starts websockify via `start_websockify()`; the dashboard is embedded in the page. Source code, setup guide and config template live in its repository.
 
 ## Security Notes
 
