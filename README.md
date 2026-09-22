@@ -182,7 +182,7 @@ remotePort = 2224
 
 ## 赛博面板联动
 
-赛博仪表盘（独立项目，`dashboard.sh` 管理）运行链：`Xvfb → dashboard.py(CPU 6,7) → x11vnc:5900 → websockify:6080`。mcpanel 内置 `start_websockify()` 自动拉起 websockify，网页内直接查看赛博面板画面。
+赛博仪表盘（独立项目：**[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**，`dashboard.sh` 管理）运行链：`Xvfb → dashboard.py(CPU 6,7) → x11vnc:5900 → websockify:6080`。mcpanel 内置 `start_websockify()` 自动拉起 websockify，网页内直接查看赛博面板画面。赛博面板源码、安装说明与配置模板见其仓库。
 
 ## 安全说明
 
