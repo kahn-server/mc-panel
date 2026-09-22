@@ -44,7 +44,7 @@ All-in-one web management panel for the KT-Anar server: live monitoring, RCON co
 
 ```
 Client browser (HTTPS)
-      │  47.105.86.27:2224 (frp) → 127.0.0.1:8080
+      │  <VPS_PUBLIC_IP>:2224 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
 │  gunicorn (eventlet, CPU 6-7)│
@@ -115,7 +115,7 @@ sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 # cert (generate if missing)
 cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=kt-anar-panel'
 
-# Env vars go directly into the mcpanel.service main unit [Service] section (merged, no drop-in)
+# Env vars go directly into the mcpanel.service main unit [Service] section
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
 [Unit]
 Description=KT-Anar Minecraft Management Panel
@@ -154,7 +154,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now mcpanel.service
 | `MC_LAUNCH_TYPE` | ✅ | MC management type: `systemd` / `screen` / `tmux`. **Injected by preinstall.sh after detection+confirm; the panel never probes itself**. Unset ⇒ panel cannot determine launch method |
 | `MC_LAUNCH_CMD` | optional | Launch command for screen/tmux (e.g. `bash start.sh`). Empty ⇒ auto-use `start.sh` or the first jar under MC_DIR |
 
-`SECRET_KEY` / `MCRCON_PASS` and all MC config are injected via `Environment=` in the **mcpanel.service main unit `[Service]` section** (preinstall.sh writes directly to the main unit, no drop-in). The code contains **no plaintext keys or hardcoded paths**. To change paths, edit the main unit, then `daemon-reload` + restart.
+`SECRET_KEY` / `MCRCON_PASS` and all MC config are injected via `Environment=` in the **mcpanel.service main unit `[Service]` section** (preinstall.sh writes directly to the main unit). The code contains **no plaintext keys or hardcoded paths**. To change paths, edit the main unit, then `daemon-reload` + restart.
 
 ## Service Management
 
@@ -179,7 +179,7 @@ localPort = 8080
 remotePort = 2224
 ```
 
-Public access: `https://47.105.86.27:2224`. gunicorn uses `proxy_protocol=True` (with mmproxy) to pass real client IPs to the audit log.
+Public access: `https://<YOUR_VPS_PUBLIC_IP>:2224`. gunicorn uses `proxy_protocol=True` (with mmproxy) to pass real client IPs to the audit log.
 
 ## Cyber Panel Integration
 
@@ -208,7 +208,7 @@ The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github
 
 ## Changelog
 
-- **2026-09-22**: Detection moved out of the panel — `detect_mc_launcher` now only reads `MC_LAUNCH_TYPE` (zero systemctl/screen/tmux probes); preinstall.sh added management-type auto-detect (systemd→screen→tmux) + user confirm + manual entry (type/name/screen·tmux launch cmd `MC_LAUNCH_CMD`); added **⚡ Quick Restart** (systemd `systemctl restart` directly, not stop+start) and direct restart after server-core upgrade; env vars merged from drop-in **into the mcpanel.service main unit** (no override.conf anymore); cleaned all `.bak` backups
+- **2026-09-22**: Detection moved out of the panel — `detect_mc_launcher` now only reads `MC_LAUNCH_TYPE` (zero systemctl/screen/tmux probes); preinstall.sh added management-type auto-detect (systemd→screen→tmux) + user confirm + manual entry (type/name/screen·tmux launch cmd `MC_LAUNCH_CMD`); added **⚡ Quick Restart** (systemd `systemctl restart` directly, not stop+start) and direct restart after server-core upgrade; env vars merged into the mcpanel.service main unit
 - **2026-09-21 (4)**: Service-name & backup-dir fallbacks — auto-scan systemd services when `MC_SERVICE_NAME` unset; preinstall.sh auto-detects the service name; auto-creates default backup dir with `plugins_bak`/`server_jar_bak` subdirs
 - **2026-09-21 (3)**: Generalization — backup list shows only common archives; any-named server jar detection (`find_server_jar`); MC launcher auto-detect (systemd/screen/tmux); preinstall.sh frp prompt (none/v1/v2) and separate backup-dir prompt, gunicorn config per frp mode
 - **2026-09-21 (2)**: MC dirs configurable — `MC_DIR`/`MC_BACKUP_ROOT`/`MC_LOG_DIR` as env vars, preinstall.sh injects them and adds sudoers no-password rules
