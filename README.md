@@ -44,7 +44,7 @@ KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台�
 
 ```
 客户端浏览器 (HTTPS)
-      │  47.105.86.27:2224 (frp) → 127.0.0.1:8080
+      │  <VPS公网IP>:2224 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
 │  gunicorn (eventlet, CPU 6-7)│
@@ -114,7 +114,7 @@ sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 # 证书（没有则生成）
 cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=kt-anar-panel'
 
-# 环境变量：直接写进 mcpanel.service 主单元 [Service] 段（已合并，不再用 drop-in）
+# 环境变量：直接写进 mcpanel.service 主单元 [Service] 段
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
 [Unit]
 Description=KT-Anar Minecraft Management Panel
@@ -153,7 +153,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now mcpanel.service
 | `MC_LAUNCH_TYPE` | ✅ | MC 管理方式：`systemd` / `screen` / `tmux`。**由 preinstall.sh 检测确认后注入；面板不再自行探测**。未设置时面板无法判断启动方式 |
 | `MC_LAUNCH_CMD` | 可选 | screen/tmux 类型的启动命令（如 `bash start.sh`）。留空自动用 MC_DIR 下 `start.sh` 或第一个 jar |
 
-`SECRET_KEY` / `MCRCON_PASS` 及全部 MC 配置均由 **mcpanel.service 主单元 `[Service]` 段的 `Environment=` 注入**（preinstall.sh 直接写入主单元，不使用 drop-in），代码中**不存在任何明文密钥与硬编码路径**。改路径只需改主单元后 `daemon-reload` + 重启。
+`SECRET_KEY` / `MCRCON_PASS` 及全部 MC 配置均由 **mcpanel.service 主单元 `[Service]` 段的 `Environment=` 注入**（preinstall.sh 直接写入主单元），代码中**不存在任何明文密钥与硬编码路径**。改路径只需改主单元后 `daemon-reload` + 重启。
 
 ## 服务管理
 
@@ -178,7 +178,7 @@ localPort = 8080
 remotePort = 2224
 ```
 
-公网访问：`https://47.105.86.27:2224`。gunicorn 开启 `proxy_protocol=True`（配合 mmproxy）以透传真实客户端 IP 到审计日志。
+公网访问：`https://<你的VPS公网IP>:2224`。gunicorn 开启 `proxy_protocol=True`（配合 mmproxy）以透传真实客户端 IP 到审计日志。
 
 ## 赛博面板联动
 
@@ -207,7 +207,7 @@ remotePort = 2224
 
 ## 变更记录
 
-- **2026-09-22**：检测逻辑彻底移出面板——`detect_mc_launcher` 改为纯读 `MC_LAUNCH_TYPE` 环境变量（不再执行 systemctl/screen/tmux 任何探测）；preinstall.sh 新增管理方式自动检测（systemd→screen→tmux）+ 用户确认 + 手动填写（类型/服务名/screen·tmux 启动命令 `MC_LAUNCH_CMD`）；新增 **⚡ 快速重启**（systemd 直接 `systemctl restart`，不拆 stop/start）与服务端升级后直接重启；环境变量由 drop-in **合并进 mcpanel.service 主单元**（不再用 override.conf）；清理全部 .bak 备份
+- **2026-09-22**：检测逻辑彻底移出面板——`detect_mc_launcher` 改为纯读 `MC_LAUNCH_TYPE` 环境变量（不再执行 systemctl/screen/tmux 任何探测）；preinstall.sh 新增管理方式自动检测（systemd→screen→tmux）+ 用户确认 + 手动填写（类型/服务名/screen·tmux 启动命令 `MC_LAUNCH_CMD`）；新增 **⚡ 快速重启**（systemd 直接 `systemctl restart`，不拆 stop/start）与服务端升级后直接重启；环境变量合并进 mcpanel.service 主单元
 - **2026-09-21（四）**：服务名与备份目录兜底——`MC_SERVICE_NAME` 未设置时自动扫描 systemd 服务识别 MC 服务；preinstall.sh 自动检测服务名；备份目录未指定时脚本自动建默认备份目录及 `plugins_bak`/`server_jar_bak` 子目录
 - **2026-09-21（三）**：通用化改造——备份列表只显示常见压缩格式；服务端 jar 任意命名识别（`find_server_jar`）；MC 启动方式自动检测（systemd/screen/tmux）；preinstall.sh 新增 frp 反向代理询问（none/v1/v2）与单独备份目录询问，gunicorn 配置按 frp 模式生成
 - **2026-09-21（二）**：MC 目录配置化——`MC_DIR`/`MC_BACKUP_ROOT`/`MC_LOG_DIR` 改环境变量读取，preinstall.sh 自动注入并新增 sudo 免密配置段
