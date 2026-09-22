@@ -1,0 +1,23 @@
+# 敏感数据 - 绝不提交
+certs/
+users.json
+avatars/
+data/
+
+# 运行时产物
+*.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 备份文件
+*.bak
+*.bak2
+backups/
+backup_*/
+
+# 系统/编辑器
+.DS_Store
+*.swp
+*~
