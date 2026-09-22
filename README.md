@@ -2,7 +2,7 @@
 
 > A modern, lightweight web panel for managing Minecraft servers: **live monitoring, RCON console, recovery mode, plugin & backup management, and a Cyberpunk-dashboard screen** — all in your browser.
 
-**English** | [简体中文](README_cn.md)
+**English** | [Chinese](README_cn.md)
 
 ![Python](https://img.shields.io/badge/python-3.8+-00d4ff) ![Flask](https://img.shields.io/badge/flask-3.0.3-000000) ![HTTPS](https://img.shields.io/badge/https-self--signed-4cc61e) ![License](https://img.shields.io/badge/license-MIT-ff2d95)
 
@@ -19,7 +19,7 @@
 ## Features
 
 - **Live monitoring**
-  - Online/max players: native `minecraft:list` command (auto-fallback to `list`), loose regex handles both Chinese and English output (`X of a max of Y` / `X/Y` / `当前有 X 位玩家在线…`)
+  - Online/max players: native `minecraft:list` command (auto-fallback to `list`), loose regex handles both Chinese and English output (`X of a max of Y` / `X/Y` / CN `X of Y` variants)
   - TPS: Paper native `tps` command (no Essentials dependency)
   - JVM heap: native `/gc` output parsing (max / allocated / free)
   - Server uptime: reads `/proc/<pid>/stat` starttime of the java process (pure system-level, no commands/plugins), falls back to the `Done (` line in logs
@@ -222,8 +222,8 @@ The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github
 
 The panel footer has **two hidden triggers disguised as plain text**. Each requires **12 rapid clicks** (the counter auto-resets on timeout) to pop up the **super-password dialog**; entering the correct super password opens the corresponding interface:
 
-- **“实时状态每10秒自动更新” (“Live status updates every 10s”)** — footer left text → 12 clicks + super password → **VNC Remote Desktop** (standalone interface, route `/recovery/vnc`, NOT part of recovery mode): embedded noVNC client showing the Cyber dashboard live (chain: `dashboard.sh start` brings up Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → panel `/vnc-proxy`). **This is the main entry for Cyber-panel integration. The Cyber dashboard MUST be started first** — use `dashboard.sh start` from the [Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard) project; if the VNC screen has **no picture for 10 seconds it auto-redirects back to recovery mode** (VNC must be running).
-- **“头像裁剪” (“Avatar crop”)** — footer right text → 12 clicks + super password → **Recovery Mode** (route `/recovery`). Hidden features inside:
+- **“Live status updates every 10s”** — footer left text → 12 clicks + super password → **VNC Remote Desktop** (standalone interface, route `/recovery/vnc`, NOT part of recovery mode): embedded noVNC client showing the Cyber dashboard live (chain: `dashboard.sh start` brings up Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → panel `/vnc-proxy`). **This is the main entry for Cyber-panel integration. The Cyber dashboard MUST be started first** — use `dashboard.sh start` from the [Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard) project; if the VNC screen has **no picture for 10 seconds it auto-redirects back to recovery mode** (VNC must be running).
+- **“Avatar crop”** — footer right text → 12 clicks + super password → **Recovery Mode** (route `/recovery`). Hidden features inside:
   - **Shell terminal**: in-page xterm to run commands on the host directly
   - **World rollback**: restore the world from backups
   - **Plugin management**: browse / upload / delete plugins
@@ -245,9 +245,9 @@ The panel footer has **two hidden triggers disguised as plain text**. Each requi
 
 | Symptom | Check |
 |---|---|
-| Service won't start, `环境变量 MCRCON_PASS 未设置` | Environment lines in mcpanel.service wrong, or no `daemon-reload` |
-| Service won't start, `环境变量 SECRET_KEY 未设置` | Same as above |
-| Panel shows server not running / "未检测到 MC 启动方式" | `MC_LAUNCH_TYPE` unset or mismatched. Check: `systemctl show mcpanel.service \| grep MC_LAUNCH`; fix the main unit env and restart, or re-run `preinstall.sh` |
+| Service won't start, `Environment variable MCRCON_PASS is not set` | Environment lines in mcpanel.service wrong, or no `daemon-reload` |
+| Service won't start, `Environment variable SECRET_KEY is not set` | Same as above |
+| Panel shows server not running / "MC launch method not detected" | `MC_LAUNCH_TYPE` unset or mismatched. Check: `systemctl show mcpanel.service \| grep MC_LAUNCH`; fix the main unit env and restart, or re-run `preinstall.sh` |
 | screen/tmux type but won't start | Verify `MC_SERVICE_NAME` is the real session name and `MC_LAUNCH_CMD` is correct (default `start.sh` or first jar); a session owned by another user may not be controllable by the panel user |
 | Player count / TPS looks wrong | `minecraft:list` / `tps` are native commands; confirm the server is Paper/Spigot-based |
 | Backups list missing files | Only common archives are shown (zip/gz/tar/7z etc.); non-archives are hidden |
