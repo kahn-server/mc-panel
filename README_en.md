@@ -204,12 +204,12 @@ Public access: `https://<YOUR_VPS_PUBLIC_IP>:8080`.
 
 The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**) is managed by the `dashboard.sh` script (`start`/`stop`). Run chain: `Xvfb → dashboard.py → x11vnc:5900 → websockify:6080` (CPU affinity is auto-assigned by the script based on core count; override with `DASH_CPU_AFFINITY`). mcpanel embeds it in the page via a WebSocket proxy (`/vnc-proxy` → 127.0.0.1:6080). Source code, setup guide and config template live in its repository.
 
-## Interface Entry (two hidden buttons at the bottom of the panel)
+## Interface Entry (two hidden triggers at the bottom of the panel)
 
-Two **clickable hidden buttons** at the bottom of the panel:
+The panel footer has **two hidden triggers disguised as plain text**. Each requires **12 rapid clicks** (the counter auto-resets on timeout) to pop up the **super-password dialog**; entering the correct super password opens the corresponding interface:
 
-- **🖥️ VNC Remote Desktop** — **a standalone interface** (route `/recovery/vnc`, but NOT part of recovery mode): embedded noVNC client showing the Cyber dashboard live (chain: `dashboard.sh start` brings up Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → panel `/vnc-proxy`). **This is the main entry for Cyber-panel integration** — if the Cyber dashboard isn't running the screen is blank/black; run `dashboard.sh start` first.
-- **🔧 Recovery Mode** — another hidden button; click to enter (route `/recovery`). Hidden features inside:
+- **“实时状态每10秒自动更新” (“Live status updates every 10s”)** — footer left text → 12 clicks + super password → **VNC Remote Desktop** (standalone interface, route `/recovery/vnc`, NOT part of recovery mode): embedded noVNC client showing the Cyber dashboard live (chain: `dashboard.sh start` brings up Xvfb → dashboard.py → x11vnc:5900 → websockify:6080 → panel `/vnc-proxy`). **This is the main entry for Cyber-panel integration** — if the Cyber dashboard isn't running the screen is blank/black; run `dashboard.sh start` first.
+- **“头像裁剪” (“Avatar crop”)** — footer right text → 12 clicks + super password → **Recovery Mode** (route `/recovery`). Hidden features inside:
   - **Shell terminal**: in-page xterm to run commands on the host directly
   - **World rollback**: restore the world from backups
   - **Plugin management**: browse / upload / delete plugins
@@ -217,10 +217,7 @@ Two **clickable hidden buttons** at the bottom of the panel:
   - **MOTD**: view / edit the server motd
   - **Host reboot**: remote reboot of the whole machine (needs passwordless sudo setup)
 
-Other clickable interactions:
-
-- **Avatar cropping**: clickable on the profile page to crop and upload an avatar
-- **Live status**: auto-refreshes every 10 seconds by default; the button is clickable for a manual refresh/toggle
+> The two footer texts are **disguised triggers**, not literal features: manual refresh / avatar cropping do not live here (avatar cropping is inside the profile dialog).
 
 ## Security Notes
 
