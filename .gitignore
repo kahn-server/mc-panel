@@ -1,23 +1,23 @@
-# 敏感数据 - 绝不提交
+# Sensitive data - never commit
 certs/
 users.json
 avatars/
 data/
 
-# 运行时产物
+# Runtime artifacts
 *.log
 __pycache__/
 *.pyc
 .venv/
 venv/
 
-# 备份文件
+# Backup files
 *.bak
 *.bak2
 backups/
 backup_*/
 
-# 系统/编辑器
+# System / editors
 .DS_Store
 *.swp
 *~
