@@ -27,6 +27,19 @@ set -e
 RUN_USER="${1:-$SUDO_USER}"
 RUN_USER="${RUN_USER:-$(whoami)}"
 
+# ---------- CPU 亲和（面板绑定末两位核心，MC 服务用前部核心） ----------
+# 自动按机器核心数计算，可用 PANEL_CPU_AFFINITY 环境变量覆盖
+CPU_AFFINITY="${PANEL_CPU_AFFINITY:-}"
+if [ -z "$CPU_AFFINITY" ]; then
+    NCORES_TOTAL="$(nproc 2>/dev/null || echo 1)"
+    if [ "$NCORES_TOTAL" -ge 2 ]; then
+        CPU_AFFINITY="$((NCORES_TOTAL-2)) $((NCORES_TOTAL-1))"
+    else
+        CPU_AFFINITY="0"
+    fi
+fi
+echo "  [INFO] CPU 核心数: ${NCORES_TOTAL:-$(nproc)}，面板亲和: ${CPU_AFFINITY}（可用 PANEL_CPU_AFFINITY 覆盖）"
+
 # ---------- MC 管理方式检测（systemd / screen / tmux） ----------
 detect_mc_manage_type() {
     local svc sname tname
@@ -265,8 +278,8 @@ ${ENV_LINES}
 ExecStart=${GUNICORN_BIN} -c gunicorn_config.py app:app
 Restart=always
 RestartSec=5
-# MC 服务占 0-5 核，web/面板绑定 6-7 核（按实际机器调整）
-CPUAffinity=6 7
+# MC 服务占用前部核心，面板绑定末两位核心（按核心数自动计算，可用 PANEL_CPU_AFFINITY 覆盖）
+CPUAffinity=${CPU_AFFINITY}
 
 [Install]
 WantedBy=multi-user.target

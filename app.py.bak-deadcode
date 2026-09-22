@@ -3985,6 +3985,33 @@ def is_port_open(port):
         s.settimeout(1)
         return s.connect_ex(('127.0.0.1', port)) == 0
 
+def start_websockify():
+    """启动 websockify，并在启动前检查日志行数（>1000 行则直接清空）"""
+    print("[START] 正在检查并启动 Websockify 代理...")
+    
+    log_path = os.path.join(SCRIPT_DIR, "websockify.log")
+    
+    # 日志轮转：超过 1000 行就直接清空，重新开始
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as lf:
+                line_count = sum(1 for _ in lf)
+            if line_count > 1000:
+                print(f"[INFO] Websockify 日志已有 {line_count} 行，超过 1000 行，执行清空轮转。")
+                os.remove(log_path)
+        except Exception as e:
+            print(f"[WARN] 日志检查失败: {e}")
+    
+    cmd = ['websockify', '127.0.0.1:6080', '127.0.0.1:5900']
+    try:
+        log_file = open(log_path, "a")
+        proc = subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT)
+        atexit.register(proc.terminate)
+        print("[OK] Websockify 已成功后台启动（纯 WS 模式，127.0.0.1:6080 -> 5900）")
+    except FileNotFoundError:
+        print("[警告] 未找到 websockify 命令，请先执行：pip install websockify numpy")
+    except Exception as e:
+        print(f"[警告] Websockify 启动失败: {e}")
 if __name__ == '__main__':
     if not (os.path.exists(SSL_CERT) and os.path.exists(SSL_KEY)):
         print("❌  SSL 证书不存在！请先生成证书：")

@@ -24,7 +24,7 @@ KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台�
   - **检测逻辑全部在安装脚本（preinstall.sh）**：安装时自动检测 MC 管理方式（systemd 服务单元 → screen 会话 → tmux 会话），经用户确认后写入环境变量 `MC_LAUNCH_TYPE` / `MC_SERVICE_NAME`
   - **面板不再执行任何探测命令**（无 `screen -ls` / `tmux ls` / `systemctl list-unit-files` 扫描），直接从环境变量读取
   - screen/tmux 的启动命令由安装脚本询问（`MC_LAUNCH_CMD`，默认沿用 MC_DIR 下的 `start.sh` 或第一个 jar）
-- **赛博面板嵌入**：内置 websockify（127.0.0.1:6080 → x11vnc 5900），把赛博仪表盘画面实时嵌进网页
+- **赛博面板嵌入**：网页内实时查看赛博仪表盘画面（`/vnc-proxy` WebSocket 代理 → 本地 websockify :6080，websockify 由 `dashboard.sh` 脚本管理）
 - **审计日志**：记录真实客户端 IP（PROXY protocol 透传）、登录与命令操作
 - **HTTPS**：自签名证书（gunicorn 直接 TLS 终止）
 
@@ -47,7 +47,7 @@ KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台�
       │  <VPS公网IP>:2224 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
-│  gunicorn (eventlet, CPU 6-7)│
+│  gunicorn (eventlet)        │
 │  ┌───────────────────────┐  │
 │  │ app.py (Flask + SIO)  │  │
 │  │  RCONClient(纯socket) │──┼──► MC 服务器 RCON 127.0.0.1:25575
@@ -182,7 +182,7 @@ remotePort = 2224
 
 ## 赛博面板联动
 
-赛博仪表盘（独立项目：**[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**，`dashboard.sh` 管理）运行链：`Xvfb → dashboard.py(CPU 6,7) → x11vnc:5900 → websockify:6080`。mcpanel 内置 `start_websockify()` 自动拉起 websockify，网页内直接查看赛博面板画面。赛博面板源码、安装说明与配置模板见其仓库。
+赛博仪表盘（独立项目：**[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**）由 `dashboard.sh` 脚本管理（`start`/`stop`），运行链：`Xvfb → dashboard.py → x11vnc:5900 → websockify:6080`（CPU 亲和由脚本按核心数自动分配，可用 `DASH_CPU_AFFINITY` 覆盖）。mcpanel 内置 WebSocket 代理（`/vnc-proxy` → 127.0.0.1:6080）在网页内展示画面。赛博面板源码、安装说明与配置模板见其仓库。
 
 ## 安全说明
 
@@ -207,6 +207,7 @@ remotePort = 2224
 
 ## 变更记录
 
+- **2026-09-23**：赛博面板联动改为独立脚本 `dashboard.sh` 管理（websockify 不再由面板自动拉起，移除死代码 `start_websockify`）；CPU 亲和改为按核心数自动计算（面板绑定末两位核心），支持 `PANEL_CPU_AFFINITY` / `DASH_CPU_AFFINITY` 环境变量覆盖
 - **2026-09-22**：检测逻辑彻底移出面板——`detect_mc_launcher` 改为纯读 `MC_LAUNCH_TYPE` 环境变量（不再执行 systemctl/screen/tmux 任何探测）；preinstall.sh 新增管理方式自动检测（systemd→screen→tmux）+ 用户确认 + 手动填写（类型/服务名/screen·tmux 启动命令 `MC_LAUNCH_CMD`）；新增 **⚡ 快速重启**（systemd 直接 `systemctl restart`，不拆 stop/start）与服务端升级后直接重启；环境变量合并进 mcpanel.service 主单元
 - **2026-09-21（四）**：服务名与备份目录兜底——`MC_SERVICE_NAME` 未设置时自动扫描 systemd 服务识别 MC 服务；preinstall.sh 自动检测服务名；备份目录未指定时脚本自动建默认备份目录及 `plugins_bak`/`server_jar_bak` 子目录
 - **2026-09-21（三）**：通用化改造——备份列表只显示常见压缩格式；服务端 jar 任意命名识别（`find_server_jar`）；MC 启动方式自动检测（systemd/screen/tmux）；preinstall.sh 新增 frp 反向代理询问（none/v1/v2）与单独备份目录询问，gunicorn 配置按 frp 模式生成

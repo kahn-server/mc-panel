@@ -24,7 +24,7 @@ All-in-one web management panel for the KT-Anar server: live monitoring, RCON co
   - **All detection lives in the installer (preinstall.sh)**: at install time it auto-detects the MC management type (systemd unit → screen session → tmux session), asks the user to confirm, then injects `MC_LAUNCH_TYPE` / `MC_SERVICE_NAME` env vars
   - **The panel runs zero probe commands** (no `screen -ls` / `tmux ls` / `systemctl list-unit-files` scans), it only reads the env vars
   - screen/tmux launch command is asked by the installer (`MC_LAUNCH_CMD`, defaults to `start.sh` under MC_DIR or the first jar)
-- **Cyber-panel embedding**: built-in websockify (127.0.0.1:6080 → x11vnc 5900) streams the Cyber dashboard into the page in real time
+- **Cyber-panel embedding**: view the Cyber dashboard live in the page (WebSocket proxy `/vnc-proxy` → local websockify :6080; websockify is managed by the `dashboard.sh` script)
 - **Audit log**: records real client IP (PROXY protocol passthrough), logins and command operations
 - **HTTPS**: self-signed cert (gunicorn terminates TLS directly)
 
@@ -47,7 +47,7 @@ Client browser (HTTPS)
       │  <VPS_PUBLIC_IP>:2224 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
-│  gunicorn (eventlet, CPU 6-7)│
+│  gunicorn (eventlet)        │
 │  ┌───────────────────────┐  │
 │  │ app.py (Flask + SIO)  │  │
 │  │  RCONClient(socket)   │──┼──► MC RCON 127.0.0.1:25575
@@ -183,7 +183,7 @@ Public access: `https://<YOUR_VPS_PUBLIC_IP>:2224`. gunicorn uses `proxy_protoco
 
 ## Cyber Panel Integration
 
-The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**, managed by `dashboard.sh`) runs: `Xvfb → dashboard.py(CPU 6,7) → x11vnc:5900 → websockify:6080`. mcpanel auto-starts websockify via `start_websockify()`; the dashboard is embedded in the page. Source code, setup guide and config template live in its repository.
+The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github.com/kahn-server/cyber-mc-dashboard)**) is managed by the `dashboard.sh` script (`start`/`stop`). Run chain: `Xvfb → dashboard.py → x11vnc:5900 → websockify:6080` (CPU affinity is auto-assigned by the script based on core count; override with `DASH_CPU_AFFINITY`). mcpanel embeds it in the page via a WebSocket proxy (`/vnc-proxy` → 127.0.0.1:6080). Source code, setup guide and config template live in its repository.
 
 ## Security Notes
 
@@ -208,6 +208,7 @@ The Cyber dashboard (separate project: **[Cyberpunk MC Dashboard](https://github
 
 ## Changelog
 
+- **2026-09-23**: Cyber-panel integration moved to standalone `dashboard.sh` management (websockify is no longer auto-started by the panel; dead code `start_websockify` removed); CPU affinity now auto-computed from core count (panel pinned to the last two cores), overridable via `PANEL_CPU_AFFINITY` / `DASH_CPU_AFFINITY`
 - **2026-09-22**: Detection moved out of the panel — `detect_mc_launcher` now only reads `MC_LAUNCH_TYPE` (zero systemctl/screen/tmux probes); preinstall.sh added management-type auto-detect (systemd→screen→tmux) + user confirm + manual entry (type/name/screen·tmux launch cmd `MC_LAUNCH_CMD`); added **⚡ Quick Restart** (systemd `systemctl restart` directly, not stop+start) and direct restart after server-core upgrade; env vars merged into the mcpanel.service main unit
 - **2026-09-21 (4)**: Service-name & backup-dir fallbacks — auto-scan systemd services when `MC_SERVICE_NAME` unset; preinstall.sh auto-detects the service name; auto-creates default backup dir with `plugins_bak`/`server_jar_bak` subdirs
 - **2026-09-21 (3)**: Generalization — backup list shows only common archives; any-named server jar detection (`find_server_jar`); MC launcher auto-detect (systemd/screen/tmux); preinstall.sh frp prompt (none/v1/v2) and separate backup-dir prompt, gunicorn config per frp mode
