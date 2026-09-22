@@ -44,7 +44,7 @@ KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台�
 
 ```
 客户端浏览器 (HTTPS)
-      │  <VPS公网IP>:2224 (frp) → 127.0.0.1:8080
+      │  <VPS公网IP>:8080 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
 │  gunicorn (eventlet)        │
@@ -167,33 +167,37 @@ sudo systemctl show mcpanel.service | grep -i environment   # 确认环境变量
 
 ## frp 反向代理
 
-两种接入方式（`remotePort` 保持你的公网端口，示例为 2224）：
+**先判断你的情况**：
 
-**方式 A：直连（不用 mmproxy）**——frpc 直接指向面板端口：
+- **服务器有公网 IP，或不需要审计日志（真实客户端 IP）** → frp / mmproxy 都不需要：安装时 frp 选项直接选 **none**，面板端口直连即可。
+- **需要 frp 转发，但不需要真实客户端 IP** → 方式 A 直连。
+- **需要 frp 转发 + 审计真实客户端 IP** → 方式 B（mmproxy + PROXY v2）。
 
-```toml
-[[proxies]]
-name = "mc_panel"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 8080     # 直连：面板 gunicorn 监听端口
-remotePort = 2224    # 公网端口，按你的 frps 配置填写
-```
-
-**方式 B：PROXY v2（透传真实客户端 IP 到审计日志）**——frpc 先连本机 mmproxy：
+**方式 A：直连（无代理）**：
 
 ```toml
 [[proxies]]
 name = "mc_panel"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 8081     # mmproxy 监听端口（收 V2 → 转 v1 → 面板 8080）
-remotePort = 2224    # 公网端口，按你的 frps 配置填写
+localPort = 8080     # 面板 gunicorn 监听端口
+remotePort = 8080    # 公网端口，按你的 frps 配置填写
 ```
 
-> mmproxy 客户端**不会随 frp 自动安装**，需自行下载并提前手动配置（systemd 开机自启、监听 127.0.0.1:8081、路由/转发规则）。直连方式下面板直接接收公网转发来的流量；V2 方式下面板只监听 `127.0.0.1:8080`，由 mmproxy 投递。
+**方式 B：PROXY v2（透传真实客户端 IP 到审计日志）**：
 
-公网访问：`https://<你的VPS公网IP>:2224`。
+```toml
+[[proxies]]
+name = "mc_panel"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8081     # 本机 mmproxy 监听端口
+remotePort = 8080    # 公网端口，按你的 frps 配置填写
+```
+
+> mmproxy 配置示例：mmproxy 监听 `127.0.0.1:8081`，把收到的 PROXY v2 转成 v1 后连接到面板 `127.0.0.1:8080`。mmproxy **不随 frp 自动安装**，需要自行下载源码编译并配置（systemd 开机自启、监听/转发规则等），详细编译与配置教程请自行搜索（关键词：mmproxy）。
+
+公网访问：`https://<你的VPS公网IP>:8080`。
 
 ## 赛博面板联动
 
