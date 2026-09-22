@@ -101,7 +101,7 @@ MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall.sh  # 跳过交�
 3. 选 `n` 则手动填写：**管理类型（systemd/screen/tmux）** + **服务名/会话名**
 4. screen/tmux 类型额外询问**启动命令**（留空自动使用 MC_DIR 下的 `start.sh` 或第一个 jar）
 
-> frp V2 穿透说明：gunicorn 只解析 PROXY v1 文本头，若启用 V2，脚本会生成监听 `127.0.0.1:8080` 的 gunicorn 配置，并提示在 frp 与面板之间加 mmproxy（监听 8081 把 V2 转 v1），部署方式与默认不同。
+> frp V2 穿透说明：gunicorn 只解析 PROXY v1 文本头。若启用 V2，脚本会生成仅监听 `127.0.0.1:8080` 的 gunicorn 配置，并提示在 frp 与面板之间加 mmproxy（监听 8081 把 V2 转 v1）。**注意：mmproxy 不会随 frp 自动安装**——需自行下载客户端 mmproxy，并提前手动配置好（systemd 开机自启、监听 127.0.0.1:8081、路由/转发规则）。部署方式与默认不同，请先确认 mmproxy 已就绪再启用 V2。
 
 ### 手动部署（参考）
 
@@ -167,18 +167,33 @@ sudo systemctl show mcpanel.service | grep -i environment   # 确认环境变量
 
 ## frp 反向代理
 
-`/usr/local/frp/frpc.toml`：
+两种接入方式（`remotePort` 保持你的公网端口，示例为 2224）：
+
+**方式 A：直连（不用 mmproxy）**——frpc 直接指向面板端口：
 
 ```toml
 [[proxies]]
 name = "mc_panel"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 8080
-remotePort = 2224
+localPort = 8080     # 直连：面板 gunicorn 监听端口
+remotePort = 2224    # 公网端口，按你的 frps 配置填写
 ```
 
-公网访问：`https://<你的VPS公网IP>:2224`。gunicorn 开启 `proxy_protocol=True`（配合 mmproxy）以透传真实客户端 IP 到审计日志。
+**方式 B：PROXY v2（透传真实客户端 IP 到审计日志）**——frpc 先连本机 mmproxy：
+
+```toml
+[[proxies]]
+name = "mc_panel"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8081     # mmproxy 监听端口（收 V2 → 转 v1 → 面板 8080）
+remotePort = 2224    # 公网端口，按你的 frps 配置填写
+```
+
+> mmproxy 客户端**不会随 frp 自动安装**，需自行下载并提前手动配置（systemd 开机自启、监听 127.0.0.1:8081、路由/转发规则）。直连方式下面板直接接收公网转发来的流量；V2 方式下面板只监听 `127.0.0.1:8080`，由 mmproxy 投递。
+
+公网访问：`https://<你的VPS公网IP>:2224`。
 
 ## 赛博面板联动
 
