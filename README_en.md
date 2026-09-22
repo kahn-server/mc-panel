@@ -44,7 +44,7 @@ All-in-one web management panel for the KT-Anar server: live monitoring, RCON co
 
 ```
 Client browser (HTTPS)
-      │  <VPS_PUBLIC_IP>:2224 (frp) → 127.0.0.1:8080
+      │  <VPS_PUBLIC_IP>:8080 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
 │  gunicorn (eventlet)        │
@@ -168,33 +168,37 @@ sudo systemctl show mcpanel.service | grep -i environment   # verify env vars
 
 ## frp Reverse Proxy
 
-Two connection modes (`remotePort` stays at your public port; 2224 in the examples):
+**Decide your scenario first**:
 
-**Mode A: Direct (no mmproxy)** — frpc points straight at the panel port:
+- **Your server has a public IP, or you don't need audit logs (real client IPs)** → neither frp nor mmproxy is needed: pick **none** for the frp option during install and reach the panel port directly.
+- **Need frp forwarding, but no real client IPs** → Mode A (direct).
+- **Need frp forwarding + audit real client IPs** → Mode B (mmproxy + PROXY v2).
 
-```toml
-[[proxies]]
-name = "mc_panel"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 8080     # direct: panel gunicorn listening port
-remotePort = 2224    # public port, set per your frps config
-```
-
-**Mode B: PROXY v2 (pass real client IPs to the audit log)** — frpc connects to local mmproxy first:
+**Mode A: Direct (no proxy)**:
 
 ```toml
 [[proxies]]
 name = "mc_panel"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 8081     # mmproxy listening port (V2 in → v1 out → panel 8080)
-remotePort = 2224    # public port, set per your frps config
+localPort = 8080     # panel gunicorn listening port
+remotePort = 8080    # public port, set per your frps config
 ```
 
-> The mmproxy client is **NOT installed with frp** — download it yourself and configure it in advance (systemd auto-start, listen on 127.0.0.1:8081, routing/forwarding rules). In direct mode the panel receives forwarded traffic directly; in V2 mode the panel listens on `127.0.0.1:8080` only and mmproxy delivers to it.
+**Mode B: PROXY v2 (pass real client IPs to the audit log)**:
 
-Public access: `https://<YOUR_VPS_PUBLIC_IP>:2224`.
+```toml
+[[proxies]]
+name = "mc_panel"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8081     # local mmproxy listening port
+remotePort = 8080    # public port, set per your frps config
+```
+
+> mmproxy example: listen on `127.0.0.1:8081`, convert incoming PROXY v2 to v1 and connect to the panel `127.0.0.1:8080`. mmproxy is **NOT installed with frp** — download and compile the source yourself, then configure it (systemd auto-start, listen/forward rules, etc.). For full compile & setup guides, search on your own (keyword: mmproxy).
+
+Public access: `https://<YOUR_VPS_PUBLIC_IP>:8080`.
 
 ## Cyber Panel Integration
 
