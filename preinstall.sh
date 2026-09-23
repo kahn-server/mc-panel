@@ -219,7 +219,7 @@ case "$PANEL_PROTO" in
             openssl req -x509 -newkey rsa:4096 -nodes \
                 -out "$PANEL_DIR/certs/cert.pem" \
                 -keyout "$PANEL_DIR/certs/key.pem" \
-                -days 365 -subj "/CN=kt-anar-panel"
+                -days 365 -subj "/CN=panel"
         fi
         chown -R "$RUN_USER":"$RUN_USER" "$PANEL_DIR/certs"
         ;;
