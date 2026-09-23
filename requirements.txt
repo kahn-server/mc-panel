@@ -9,4 +9,4 @@ websocket-client==0.53.0
 eventlet==0.39.1
 gunicorn==23.0.0
 websockify==0.13.0
-Pillow==7.0.0
+Pillow==10.4.0
