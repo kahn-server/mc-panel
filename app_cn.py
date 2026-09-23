@@ -1144,7 +1144,7 @@ button{background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:8px 18p
 button:hover{background:#30363d}button.primary{background:#238636;border-color:#2ea043;color:#fff}button.danger{background:#da3633;border-color:#f85149;color:#fff}button.warning{background:#9e6a03;border-color:#d29922;color:#fff}
 table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #21262d}th{background:#0d1117;color:#8b949e}a{color:#58a6ff;text-decoration:none}
 pre{background:#0d1117;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;max-height:400px;white-space:pre-wrap}
-input[type="text"],input[type="password"],input[type="file"]{background:#21262d;border:1px solid #30363d;padding:6px;border-radius:6px;color:#c9d1d9}
+input[type="text"],input[type="password"],input[type="file"]{background:#21262d;border:1px solid #30363d;padding:6px;border-radius:6px;color:#c9d1d9}.file-wrap{display:inline-flex;align-items:center;gap:8px;background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px;cursor:pointer}.file-wrap input[type=file]{display:none}.file-btn{background:#238636;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;white-space:nowrap}.file-name{color:#c9d1d9;font-size:13px;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap}
 .flex-row{display:flex;flex-wrap:wrap;gap:15px;align-items:center}.section-title{font-size:1.4rem;margin-bottom:15px;color:#58a6ff;border-left:3px solid #58a6ff;padding-left:12px;cursor:pointer;user-select:none}
 .collapsible-content{display:none;margin-top:15px}.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);justify-content:center;align-items:center;z-index:1000}
 .modal-content{background:#161b22;padding:25px;border-radius:12px;width:500px;max-width:90%;border:1px solid #30363d}.progress-bar{width:100%;height:20px;background:#30363d;border-radius:10px;overflow:hidden;margin:10px 0}
@@ -1180,10 +1180,10 @@ label { display: block; margin-top: 12px; }
 <div class="info-card"><div class="info-label">⏲️ 服务器运行时间</div><div class="info-value" id="uptimeValue">-</div></div></div></div></div>
 <div class="card"><div class="section-title" onclick="toggleCollapse('pluginsContent')">📦 插件管理  ▼</div><div id="pluginsContent" class="collapsible-content">
 <div id="pluginAdminArea" style="display:none"><div class="flex-row"><button onclick="showInstallPlugin()">➕  安装新插件</button></div>
-<form id="installPluginForm" enctype="multipart/form-data" style="display:none;margin-top:10px"><input type="file" name="file" accept=".jar" required><button type="submit">上传并安装</button></form></div><table id="pluginTable"><thead><tr><th>文件名</th><th>版本</th><th>大小</th><th>操作</th></tr></thead><tbody></tbody></table></div></div>
+<form id="installPluginForm" enctype="multipart/form-data" style="display:none;margin-top:10px"><label class="file-wrap"><span class="file-btn">选择文件</span><input type="file" name="file" accept=".jar" required onchange="this.closest('.file-wrap').querySelector('.file-name').textContent=this.files.length?this.files[0].name:'未选择文件'"><span class="file-name">未选择文件</span></label><button type="submit">上传并安装</button></form></div><table id="pluginTable"><thead><tr><th>文件名</th><th>版本</th><th>大小</th><th>操作</th></tr></thead><tbody></tbody></table></div></div>
 <div class="card"><div class="section-title" onclick="toggleCollapse('serverContent')">🔄 服务端核心升级  ▼</div><div id="serverContent" class="collapsible-content"><div id="serverInfo"></div>
 <p><a href="https://papermc.io/downloads" target="_blank">📥 前往 PaperMC 官网下载新版核心</a></p>
-<form id="uploadJarForm" enctype="multipart/form-data" class="flex-row"><input type="file" name="jarfile" accept=".jar" required><button type="submit">⬆️ 上传并替换服务端核心</button></form>
+<form id="uploadJarForm" enctype="multipart/form-data" class="flex-row"><label class="file-wrap"><span class="file-btn">选择文件</span><input type="file" name="jarfile" accept=".jar" required onchange="this.closest('.file-wrap').querySelector('.file-name').textContent=this.files.length?this.files[0].name:'未选择文件'"><span class="file-name">未选择文件</span></label><button type="submit">⬆️ 上传并替换服务端核心</button></form>
 <small>⚠️ 上传后需要手动重启服务器生效</small></div></div>
 <div class="card"><div class="section-title" onclick="toggleCollapse('backupContent')">💾 备份管理  ▼</div><div id="backupContent" class="collapsible-content"><div class="flex-row"><button onclick="loadBackups()">🔄 刷新备份列表</button></div>
 <table id="backupTable"><thead><tr><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody></tbody></table></div></div>
@@ -1195,7 +1195,7 @@ label { display: block; margin-top: 12px; }
 <footer><span id="secretVncTrigger" style="cursor: default;">实时状态每10秒自动更新</span> | 多用户支持 | <span id="secretTerminalTrigger" style="cursor: default;">头像裁剪</span></footer>
 </div>
 <div id="modal" class="modal"><div class="modal-content"><div id="modalMessage"></div><div class="progress-bar" id="progressBar" style="display:none"><div class="progress-fill" id="progressFill"></div></div><div class="modal-buttons"><button id="modalCancelBtn" style="display:none">取消</button><button id="modalActionBtn" style="display:none">确定</button><button id="modalCloseBtn">确定</button></div></div></div>
-<div id="profileModal" class="modal"><div class="modal-content"><h3>个人资料</h3><form id="profileForm"><label>新用户名:</label><input type="text" id="newUsername"><label>新密码:</label><input type="password" id="newPassword"><label>确认新密码:</label><input type="password" id="confirmNewPassword"><label>头像</label><input type="file" id="avatarInput" accept="image/*"><div id="cropContainer" style="display:none"><img id="avatarCropImage" style="max-width:100%"><button type="button" id="cropBtn">裁剪并上传</button></div><div style="margin-top:15px"><button type="submit" id="saveProfileBtn">保存修改</button><button type="button" onclick="closeProfileModal()">取消</button></div></form></div></div>
+<div id="profileModal" class="modal"><div class="modal-content"><h3>个人资料</h3><form id="profileForm"><label>新用户名:</label><input type="text" id="newUsername"><label>新密码:</label><input type="password" id="newPassword"><label>确认新密码:</label><input type="password" id="confirmNewPassword"><label>头像</label><label class="file-wrap"><span class="file-btn">选择文件</span><input type="file" id="avatarInput" accept="image/*" onchange="this.closest('.file-wrap').querySelector('.file-name').textContent=this.files.length?this.files[0].name:'未选择文件'"><span class="file-name">未选择文件</span></label><div id="cropContainer" style="display:none"><img id="avatarCropImage" style="max-width:100%"><button type="button" id="cropBtn">裁剪并上传</button></div><div style="margin-top:15px"><button type="submit" id="saveProfileBtn">保存修改</button><button type="button" onclick="closeProfileModal()">取消</button></div></form></div></div>
 <div id="createUserModal" class="modal"><div class="modal-content"><h3>创建新用户</h3><form id="createUserForm"><label>用户名:</label><input type="text" id="createUsername" required><label>密码:</label><input type="password" id="createPassword" required><label>角色:</label><select id="createRole"><option value="user">普通用户</option><option value="admin">管理员</option></select><div style="margin-top:15px"><button type="submit">创建</button><button type="button" onclick="closeCreateUserModal()">取消</button></div></form></div></div>
 <div id="changePasswordModal" class="modal"><div class="modal-content"><h3>修改用户密码</h3><p>用户名: <span id="changeUsernameDisplay"></span></p><label>新密码:</label><input type="password" id="newPasswordForUser" placeholder="请输入新密码" required><div style="margin-top:15px"><button onclick="confirmChangePassword()">保存</button><button onclick="closeChangePasswordModal()">取消</button></div></div></div>
 <div id="superPasswordModal" class="modal"><div class="modal-content"><h3 id="superPwdTitle">超级终端密码</h3><input type="password" id="superPasswordInput" placeholder="输入超级密码"><span id="superPasswordError" style="color:#f85149;display:none;margin-top:5px;">密码错误</span><div style="margin-top:15px"><button onclick="submitSuperPassword()">确认</button><button onclick="closeSuperPasswordModal()">取消</button></div></div></div>
@@ -2724,6 +2724,7 @@ input[type="file"] {
     flex: 1;
     min-width: 200px;
 }
+.file-wrap{display:inline-flex;align-items:center;gap:8px;background:#21262d;border:1px solid #30363d;border-radius:6px;padding:8px;cursor:pointer;min-width:200px}.file-wrap input[type=file]{display:none}.file-btn{background:#238636;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;white-space:nowrap}.file-name{color:#c9d1d9;font-size:13px;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap}
 .preview-box {
     margin-top: 20px;
     display: flex;
@@ -2768,7 +2769,7 @@ input[type="file"] {
     <div class="recovery-page-title">🖼️ 替换服务器图标</div>
     <div class="upload-card">
         <div class="file-input-row">
-            <input type="file" id="iconFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp">
+            <label class="file-wrap"><span class="file-btn">选择文件</span><input type="file" id="iconFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" onchange="this.closest('.file-wrap').querySelector('.file-name').textContent=this.files.length?this.files[0].name:'未选择文件'"><span class="file-name">未选择文件</span></label>
         </div>
         <div class="preview-box" id="previewBox" style="display:none;">
             <div class="preview-item">
