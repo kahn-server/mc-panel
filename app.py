@@ -422,7 +422,7 @@ def recovery_authorized():
     return True
 
 NOT_FOUND_PAGE = r"""<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1886,7 +1886,7 @@ function goBackRecovery() {
 """
 
 # ==================== Recovery Mode: Home ====================
-RECOVERY_MAIN_PAGE = r"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+RECOVERY_MAIN_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>KT-Anar Recovery Mode</title>
@@ -2007,7 +2007,7 @@ async function doReboot() {
 </body></html>"""
 
 # ==================== Recovery Mode: Terminal ====================
-RECOVERY_SHELL_PAGE = r"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+RECOVERY_SHELL_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <title>KT-Anar - Linux Terminal</title>
 <link rel="stylesheet" href="/static/css/xterm.css">
@@ -2186,7 +2186,7 @@ document.addEventListener('DOMContentLoaded', initTerminal);
 </body></html>"""
 
 # ==================== Recovery Mode: Restore World ====================
-RECOVERY_WORLD_PAGE = r"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+RECOVERY_WORLD_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>KT-Anar - Restore from Backup</title>
@@ -2401,7 +2401,7 @@ document.addEventListener('DOMContentLoaded', loadBackups);
 </body></html>"""
 
 # ==================== Recovery Mode: Plugin Directory ====================
-RECOVERY_PLUGINS_PAGE = r"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+RECOVERY_PLUGINS_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>KT-Anar - Plugin Directory</title>
@@ -2689,7 +2689,7 @@ document.addEventListener('DOMContentLoaded', () => loadDir(''));
 </body></html>"""
 
 # ==================== Recovery Mode: Server Icon ====================
-RECOVERY_ICON_PAGE = r"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+RECOVERY_ICON_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>KT-Anar - Replace Server Icon</title>
@@ -2849,7 +2849,7 @@ function downloadCurrent() {
 </body></html>"""
 
 # ==================== Recovery Mode: Edit Motd ====================
-RECOVERY_MOTD_PAGE = r"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+RECOVERY_MOTD_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>KT-Anar - Edit Motd</title>
@@ -3074,7 +3074,7 @@ document.addEventListener('DOMContentLoaded', loadMotd);
 </body></html>"""
 
 # ==================== Recovery Mode: VNC Remote Desktop ====================
-RECOVERY_VNC_PAGE = r"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+RECOVERY_VNC_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <title>KT-Anar - VNC Remote Desktop</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon_recovery.svg">
