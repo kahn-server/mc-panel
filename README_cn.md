@@ -1,6 +1,6 @@
-# KT-Anar Minecraft 管理面板 (mcpanel)
+# MCPanel — Minecraft 服务器网页管理面板
 
-KT-Anar 服务器的一体化网页管理面板：实时监控、RCON 控制台、恢复模式、插件管理、赛博面板画面嵌入。
+一体化的 Minecraft 服务器网页管理面板：实时监控、RCON 控制台、恢复模式、插件管理、赛博面板画面嵌入。
 
 **[English](README.md) | 简体中文**
 
@@ -120,12 +120,12 @@ sudo apt-get install -y python3 python3-pip python3-dev build-essential libssl-d
 sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 
 # 证书（没有则生成）
-cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=kt-anar-panel'
+cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=panel'
 
 # 环境变量：直接写进 mcpanel.service 主单元 [Service] 段
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
 [Unit]
-Description=KT-Anar Minecraft Management Panel
+Description=MCPanel Minecraft Management Panel
 After=network.target
 
 [Service]
