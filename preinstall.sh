@@ -177,6 +177,9 @@ if [ -z "$USE_VENV" ]; then
     read -r USE_VENV
     [ -z "$USE_VENV" ] && USE_VENV="y"
 fi
+if [[ "$USE_VENV" =~ ^[Yy]$ ]] && [ -d "$PANEL_DIR/venv" ]; then
+    echo "  >> Existing virtual environment detected: $PANEL_DIR/venv (will be reused, not overwritten)"
+fi
 
 # ---------- 2. Python dependencies ----------
 echo "[2/10] Installing Python dependencies..."
