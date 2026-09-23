@@ -10,6 +10,7 @@
 #   MCRCON_PASS=xxx sudo bash preinstall.sh     # set RCON password (otherwise interactive)
 #   MC_SERVICE_NAME=mc sudo bash preinstall.sh  # set MC service/screen/tmux session name (auto-detect default)
 #   MC_LAUNCH_TYPE=systemd sudo bash preinstall.sh  # set manage type systemd/screen/tmux (auto-detect default)
+#   PANEL_PROTO=http sudo bash preinstall.sh  # HTTP mode (INSECURE, HTTPS strongly recommended; default https)
 #   MC_LAUNCH_CMD='bash start.sh' sudo bash preinstall.sh  # launch command for screen/tmux (auto default)
 #
 # What it deploys:
@@ -179,15 +180,30 @@ mkdir -p "$PANEL_DIR/certs" "$PANEL_DIR/data" "$PANEL_DIR/static/avatars"
 mkdir -p /data/mc_panel_logs
 chown -R "$RUN_USER":"$RUN_USER" "$PANEL_DIR"
 
-# ---------- 4. HTTPS self-signed certificate ----------
-echo "[4/10] Checking HTTPS certificate..."
-if [ ! -f "$PANEL_DIR/certs/cert.pem" ] || [ ! -f "$PANEL_DIR/certs/key.pem" ]; then
-    openssl req -x509 -newkey rsa:4096 -nodes \
-        -out "$PANEL_DIR/certs/cert.pem" \
-        -keyout "$PANEL_DIR/certs/key.pem" \
-        -days 365 -subj "/CN=kt-anar-panel"
+# ---------- 4. Panel protocol (HTTPS default, HTTP optional) ----------
+PANEL_PROTO="${PANEL_PROTO:-}"
+if [ -z "$PANEL_PROTO" ]; then
+    echo "[4/10] Panel access protocol? [https/http] (default: https): "
+    read -r PANEL_PROTO
+    [ -z "$PANEL_PROTO" ] && PANEL_PROTO="https"
 fi
-chown -R "$RUN_USER":"$RUN_USER" "$PANEL_DIR/certs"
+case "$PANEL_PROTO" in
+    http)
+        echo "  >> WARNING: HTTP is NOT encrypted - passwords and traffic travel in plaintext."
+        echo "     HTTPS is strongly recommended. Continuing with HTTP as you chose."
+        ;;
+    *)
+        PANEL_PROTO="https"
+        echo "[4/10] Checking HTTPS certificate..."
+        if [ ! -f "$PANEL_DIR/certs/cert.pem" ] || [ ! -f "$PANEL_DIR/certs/key.pem" ]; then
+            openssl req -x509 -newkey rsa:4096 -nodes \
+                -out "$PANEL_DIR/certs/cert.pem" \
+                -keyout "$PANEL_DIR/certs/key.pem" \
+                -days 365 -subj "/CN=kt-anar-panel"
+        fi
+        chown -R "$RUN_USER":"$RUN_USER" "$PANEL_DIR/certs"
+        ;;
+esac
 
 # ---------- 5. RCON password ----------
 echo "[5/10] Configuring RCON password (MCRCON_PASS)..."
@@ -269,10 +285,14 @@ cat > "$PANEL_DIR/gunicorn_config.py" <<EOF
 bind = "$GUNI_BIND"
 workers = 1
 worker_class = "eventlet"
-certfile = "certs/cert.pem"
-keyfile = "certs/key.pem"
 accesslog = "-"
 EOF
+if [ "$PANEL_PROTO" = "https" ]; then
+cat >> "$PANEL_DIR/gunicorn_config.py" <<EOF
+certfile = "certs/cert.pem"
+keyfile = "certs/key.pem"
+EOF
+fi
 if [ "$FRP_MODE" != "none" ]; then
 cat >> "$PANEL_DIR/gunicorn_config.py" <<EOF
 # PROXY protocol (pass real client IP to audit log)
@@ -341,8 +361,11 @@ systemctl restart mcpanel.service
 sleep 3
 systemctl status mcpanel.service --no-pager | head -10
 
+PROTO_URL="https"
+[ "$PANEL_PROTO" = "http" ] && PROTO_URL="http"
+
 case "$FRP_MODE" in
-    none) ACCESS_NOTE="https://<SERVER_IP>:8080 direct access" ;;
+    none) ACCESS_NOTE="$PROTO_URL://<SERVER_IP>:8080 direct access" ;;
     v1)   ACCESS_NOTE="frp mapped -> panel 8080 (PROXY v1, real IP passthrough)" ;;
     v2)   ACCESS_NOTE="frp + mmproxy -> panel 127.0.0.1:8080 (PROXY v2)" ;;
 esac
