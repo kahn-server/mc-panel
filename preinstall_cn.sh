@@ -345,9 +345,9 @@ else
     MC_SYSTEMCTL_LINE="# MC 由 ${MC_LAUNCH_TYPE} 管理，无需 systemctl 免密"
 fi
 cat > "$SUDOERS_FILE" <<EOF
-# mcpanel 运行所需命令免密（由 preinstall.sh 自动生成）
 ${MC_SYSTEMCTL_LINE}
-${RUN_USER} ALL=(root) NOPASSWD: /usr/bin/chattr, /usr/bin/lsattr
+${RUN_USER} ALL=(root) NOPASSWD: /usr/bin/lsattr
+${RUN_USER} ALL=(root) NOPASSWD: /usr/bin/chattr +i ${MC_DIR%/}/ops.json, /usr/bin/chattr -i ${MC_DIR%/}/ops.json
 ${RUN_USER} ALL=(root) NOPASSWD: /usr/sbin/reboot, /sbin/reboot
 EOF
 chmod 440 "$SUDOERS_FILE"
