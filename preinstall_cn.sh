@@ -6,6 +6,7 @@
 # 用法:
 #   sudo bash preinstall.sh                     # 部署到调用 sudo 的用户
 #   sudo bash preinstall.sh mcserver            # 指定运行用户
+#   MC_DIR=/path/to/mc sudo bash preinstall.sh  # 指定 MC 服务端目录（默认自动检测 + 交互确认）
 #   MCRCON_PASS=xxx sudo bash preinstall.sh     # 指定 RCON 密码（否则交互输入）
 #   MC_SERVICE_NAME=mc sudo bash preinstall.sh  # 指定 MC 服务名/screen/tmux 会话名（默认自动检测）
 #   MC_LAUNCH_TYPE=systemd sudo bash preinstall.sh  # 指定管理方式 systemd/screen/tmux（默认自动检测）
@@ -16,10 +17,11 @@
 #   2. Python 依赖 (requirements.txt, --user 安装到运行用户)
 #   3. 目录结构与 HTTPS 自签证书
 #   4. frp 反向代理询问（none / PROXY v1 / PROXY v2）
-#   5. 备份目录询问（指定则建两个子目录；留空自动建默认备份目录+两个子目录）
-#   6. MC 管理方式检测 + 环境变量注入 (SECRET_KEY/MCRCON_PASS/MC_DIR 等，合并进主单元)
-#   7. sudo 免密 (systemctl MC / chattr / reboot)
-#   8. systemd 服务 (mcpanel.service) + gunicorn 配置（按 frp 模式生成）
+#   5. MC 服务端目录检测（自动检测 + 交互确认，可用 MC_DIR 预指定）
+#   6. 备份目录询问（指定则建两个子目录；留空自动建默认备份目录+两个子目录）
+#   7. MC 管理方式检测 + 环境变量注入 (SECRET_KEY/MCRCON_PASS/MC_DIR 等，合并进主单元)
+#   8. sudo 免密 (systemctl MC / chattr / reboot)
+#   9. systemd 服务 (mcpanel.service) + gunicorn 配置（按 frp 模式生成）
 # =====================================================================
 
 set -e
@@ -99,6 +101,52 @@ if ! id "$RUN_USER" >/dev/null 2>&1; then
   exit 1
 fi
 
+# ---------- MC 服务端目录检测（自动检测 + 交互确认，可用 MC_DIR 预指定） ----------
+detect_mc_dir() {
+    local pid dir rh
+    # 优先：运行中的 MC java 进程工作目录（识别 paper/spigot/purpur/bukkit/fabric/forge 等）
+    pid="$(pgrep -f '\.jar.*(nogui|server|spigot|paper|purpur|fabric|forge)' 2>/dev/null | head -1 || true)"
+    if [ -n "$pid" ]; then
+        dir="$(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '')"
+        if [ -n "$dir" ] && [ -f "$dir/server.properties" ]; then
+            echo "$dir"; return
+        fi
+    fi
+    # 兜底：常见目录
+    rh="$(sudo -H -u "$RUN_USER" python3 -c 'import os;print(os.path.expanduser("~"))' 2>/dev/null || echo '')"
+    for c in /data/minecraft_server "$rh/minecraft_server" "$rh/mc" /opt/minecraft_server; do
+        if [ -f "$c/server.properties" ]; then
+            echo "$c"; return
+        fi
+    done
+    echo ""
+}
+MC_DIR="${MC_DIR:-}"
+if [ -z "$MC_DIR" ]; then
+    DETECT_MC_DIR="$(detect_mc_dir)"
+    if [ -z "$DETECT_MC_DIR" ]; then
+        echo "  未自动检测到 MC 服务端目录，请手动填写："
+        read -r -p "  MC 服务端目录（含 server.jar / server.properties）: " MC_DIR
+        while [ -z "$MC_DIR" ]; do
+            read -r -p "  MC 服务端目录不能为空，请重新输入: " MC_DIR
+        done
+    else
+        echo "  自动检测到 MC 服务端目录: [$DETECT_MC_DIR]"
+        read -r -p "  确认使用这个目录吗？(Y/n): " CONFIRM_MC_DIR
+        if [[ "$CONFIRM_MC_DIR" =~ ^[Nn]$ ]]; then
+            read -r -p "  请手动填写 MC 服务端目录: " MC_DIR
+            while [ -z "$MC_DIR" ]; do
+                read -r -p "  MC 服务端目录不能为空，请重新输入: " MC_DIR
+            done
+        else
+            MC_DIR="$DETECT_MC_DIR"
+        fi
+    fi
+fi
+if [ ! -d "$MC_DIR" ]; then
+    echo "  [警告] MC 目录 $MC_DIR 不存在（面板仍会安装，但插件/日志/备份相关功能需要该目录存在才能工作）"
+fi
+
 PANEL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_HOME="$(sudo -H -u "$RUN_USER" python3 -c 'import os; print(os.path.expanduser("~"))')"
 GUNICORN_BIN="$RUN_HOME/.local/bin/gunicorn"
@@ -171,7 +219,7 @@ fi
 
 # ---------- 7. 备份目录 + SECRET_KEY + 环境变量（合并进主单元） ----------
 echo "[7/10] 配置备份目录，生成 SECRET_KEY 并准备环境变量（合并进主单元）..."
-read -r -p "设置单独的备份目录（留空则使用默认 \${MC_DIR}/backups）: " BACKUP_ROOT_INPUT
+read -r -p "设置单独的备份目录（留空则使用默认 ${MC_DIR}/backups）: " BACKUP_ROOT_INPUT
 if [ -n "$BACKUP_ROOT_INPUT" ]; then
     ENV_BACKUP_ROOT="Environment=\"MC_BACKUP_ROOT=${BACKUP_ROOT_INPUT}\""
     echo "  >> 备份目录: $BACKUP_ROOT_INPUT"
@@ -181,9 +229,9 @@ if [ -n "$BACKUP_ROOT_INPUT" ]; then
 else
     ENV_BACKUP_ROOT=""
     echo "  >> 未设置单独备份目录（将使用默认）。注意：没有备份目录时，备份/恢复相关功能可能无法使用"
-    mkdir -p /data/minecraft_server/backups/plugins_bak /data/minecraft_server/backups/server_jar_bak
-    chown -R "$RUN_USER":"$RUN_USER" /data/minecraft_server/backups
-    echo "  >> 已自动创建默认备份目录 /data/minecraft_server/backups/{plugins_bak,server_jar_bak}"
+    mkdir -p "$MC_DIR/backups/plugins_bak" "$MC_DIR/backups/server_jar_bak"
+    chown -R "$RUN_USER":"$RUN_USER" "$MC_DIR/backups"
+    echo "  >> 已自动创建默认备份目录 $MC_DIR/backups/{plugins_bak,server_jar_bak}"
 fi
 SECRET_KEY="$(sudo -H -u "$RUN_USER" python3 -c 'import secrets; print(secrets.token_hex(32))')"
 mkdir -p /etc/systemd/system/mcpanel.service.d
@@ -191,7 +239,7 @@ ENV_LINES="Environment=\"SECRET_KEY=${SECRET_KEY}\""
 ENV_LINES="${ENV_LINES}
 Environment=\"MCRCON_PASS=${MCRCON_PASS}\""
 ENV_LINES="${ENV_LINES}
-Environment=\"MC_DIR=/data/minecraft_server\""
+Environment=\"MC_DIR=${MC_DIR}\""
 ENV_LINES="${ENV_LINES}
 Environment=\"MC_SERVICE_NAME=${MC_SERVICE_NAME}\""
 ENV_LINES="${ENV_LINES}
