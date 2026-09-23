@@ -169,6 +169,17 @@ apt-get install -y \
     xvfb x11vnc \
     curl wget git openssl
 
+# ---------- 2a. 选择是否使用 Python 虚拟环境 ----------
+USE_VENV="${USE_VENV:-}"
+if [ -z "$USE_VENV" ]; then
+    echo "  是否使用 Python 虚拟环境？(Y/n，默认 y): "
+    read -r USE_VENV
+    [ -z "$USE_VENV" ] && USE_VENV="y"
+fi
+if [[ "$USE_VENV" =~ ^[Yy]$ ]] && [ -d "$PANEL_DIR/venv" ]; then
+    echo "  >> 检测到已有虚拟环境：$PANEL_DIR/venv（继续使用，不会覆盖）"
+fi
+
 # ---------- 2. Python 依赖 ----------
 echo "[2/10] 安装 Python 依赖..."
 if [[ "$USE_VENV" =~ ^[Yy]$ ]]; then
