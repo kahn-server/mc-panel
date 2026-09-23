@@ -10,6 +10,7 @@
 #   MCRCON_PASS=xxx sudo bash preinstall.sh     # 指定 RCON 密码（否则交互输入）
 #   MC_SERVICE_NAME=mc sudo bash preinstall.sh  # 指定 MC 服务名/screen/tmux 会话名（默认自动检测）
 #   MC_LAUNCH_TYPE=systemd sudo bash preinstall.sh  # 指定管理方式 systemd/screen/tmux（默认自动检测）
+#   PANEL_PROTO=http sudo bash preinstall.sh  # HTTP 模式（不安全，强烈建议 HTTPS；默认 https）
 #   MC_LAUNCH_CMD='bash start.sh' sudo bash preinstall.sh  # screen/tmux 时的启动命令（默认自动）
 #
 # 部署内容:
@@ -179,15 +180,30 @@ mkdir -p "$PANEL_DIR/certs" "$PANEL_DIR/data" "$PANEL_DIR/static/avatars"
 mkdir -p /data/mc_panel_logs
 chown -R "$RUN_USER":"$RUN_USER" "$PANEL_DIR"
 
-# ---------- 4. HTTPS 自签证书 ----------
-echo "[4/10] 检查 HTTPS 证书..."
-if [ ! -f "$PANEL_DIR/certs/cert.pem" ] || [ ! -f "$PANEL_DIR/certs/key.pem" ]; then
-    openssl req -x509 -newkey rsa:4096 -nodes \
-        -out "$PANEL_DIR/certs/cert.pem" \
-        -keyout "$PANEL_DIR/certs/key.pem" \
-        -days 365 -subj "/CN=kt-anar-panel"
+# ---------- 4. 面板访问协议（默认 HTTPS，可选 HTTP）----------
+PANEL_PROTO="${PANEL_PROTO:-}"
+if [ -z "$PANEL_PROTO" ]; then
+    echo "[4/10] 面板访问协议？[https/http]（默认 https）："
+    read -r PANEL_PROTO
+    [ -z "$PANEL_PROTO" ] && PANEL_PROTO="https"
 fi
-chown -R "$RUN_USER":"$RUN_USER" "$PANEL_DIR/certs"
+case "$PANEL_PROTO" in
+    http)
+        echo "  >> 警告：HTTP 不加密，密码和流量以明文传输，强烈建议使用 HTTPS！"
+        echo "     按你的选择继续使用 HTTP。"
+        ;;
+    *)
+        PANEL_PROTO="https"
+        echo "[4/10] 检查 HTTPS 证书..."
+        if [ ! -f "$PANEL_DIR/certs/cert.pem" ] || [ ! -f "$PANEL_DIR/certs/key.pem" ]; then
+            openssl req -x509 -newkey rsa:4096 -nodes \
+                -out "$PANEL_DIR/certs/cert.pem" \
+                -keyout "$PANEL_DIR/certs/key.pem" \
+                -days 365 -subj "/CN=kt-anar-panel"
+        fi
+        chown -R "$RUN_USER":"$RUN_USER" "$PANEL_DIR/certs"
+        ;;
+esac
 
 # ---------- 5. RCON 密码 ----------
 echo "[5/10] 配置 RCON 密码 (MCRCON_PASS)..."
@@ -269,10 +285,14 @@ cat > "$PANEL_DIR/gunicorn_config.py" <<EOF
 bind = "$GUNI_BIND"
 workers = 1
 worker_class = "eventlet"
-certfile = "certs/cert.pem"
-keyfile = "certs/key.pem"
 accesslog = "-"
 EOF
+if [ "$PANEL_PROTO" = "https" ]; then
+cat >> "$PANEL_DIR/gunicorn_config.py" <<EOF
+certfile = "certs/cert.pem"
+keyfile = "certs/key.pem"
+EOF
+fi
 if [ "$FRP_MODE" != "none" ]; then
 cat >> "$PANEL_DIR/gunicorn_config.py" <<EOF
 # PROXY protocol（透传真实客户端 IP 到审计日志）
@@ -341,8 +361,11 @@ systemctl restart mcpanel.service
 sleep 3
 systemctl status mcpanel.service --no-pager | head -10
 
+PROTO_URL="https"
+[ "$PANEL_PROTO" = "http" ] && PROTO_URL="http"
+
 case "$FRP_MODE" in
-    none) ACCESS_NOTE="https://<服务器IP>:8080 直接访问" ;;
+    none) ACCESS_NOTE="$PROTO_URL://<服务器IP>:8080 直接访问" ;;
     v1)   ACCESS_NOTE="frp 映射 -> 面板 8080（PROXY v1，真实 IP 透传）" ;;
     v2)   ACCESS_NOTE="frp + mmproxy -> 面板 127.0.0.1:8080（PROXY v2）" ;;
 esac
