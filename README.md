@@ -81,7 +81,7 @@ Client browser (HTTPS)
 ├── requirements.txt    # Python deps
 ├── gunicorn_config.py  # gunicorn config (proxy_protocol / cert)
 ├── README.md           # This document
-├── README_en.md        # English version
+├── README.md           # English version
 ├── certs/              # HTTPS certs (cert.pem / key.pem)
 ├── data/               # Panel data
 ├── static/avatars/     # Player avatar cache
@@ -127,12 +127,12 @@ sudo apt-get install -y python3 python3-pip python3-dev build-essential libssl-d
 sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 
 # cert (generate if missing)
-cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=kt-anar-panel'
+cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=panel'
 
 # Env vars go directly into the mcpanel.service main unit [Service] section
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
 [Unit]
-Description=KT-Anar Minecraft Management Panel
+Description=MCPanel Minecraft Management Panel
 After=network.target
 
 [Service]
