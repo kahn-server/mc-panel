@@ -12,6 +12,7 @@
 #   MC_LAUNCH_TYPE=systemd sudo bash preinstall.sh  # set manage type systemd/screen/tmux (auto-detect default)
 #   PANEL_PROTO=http sudo bash preinstall.sh  # HTTP mode (INSECURE, HTTPS strongly recommended; default https)
 #   MC_LAUNCH_CMD='bash start.sh' sudo bash preinstall.sh  # launch command for screen/tmux (auto default)
+#   USE_VENV=n sudo bash preinstall.sh  # skip Python virtual environment (venv is the default)
 #
 # What it deploys:
 #   1. System deps (python3/pip/build tools/Xvfb/x11vnc)
@@ -169,10 +170,29 @@ apt-get install -y \
     xvfb x11vnc \
     curl wget git openssl
 
+# ---------- 2a. Python virtual environment choice ----------
+USE_VENV="${USE_VENV:-}"
+if [ -z "$USE_VENV" ]; then
+    echo "  Use a Python virtual environment? (Y/n, default: y): "
+    read -r USE_VENV
+    [ -z "$USE_VENV" ] && USE_VENV="y"
+fi
+
 # ---------- 2. Python dependencies ----------
-echo "[2/10] Installing Python dependencies (--user)..."
-sudo -H -u "$RUN_USER" python3 -m pip install --upgrade pip
-sudo -H -u "$RUN_USER" python3 -m pip install --user -r "$PANEL_DIR/requirements.txt"
+echo "[2/10] Installing Python dependencies..."
+if [[ "$USE_VENV" =~ ^[Yy]$ ]]; then
+    echo "  >> Creating virtual environment: $PANEL_DIR/venv"
+    sudo -H -u "$RUN_USER" python3 -m venv "$PANEL_DIR/venv"
+    sudo -H -u "$RUN_USER" "$PANEL_DIR/venv/bin/pip" install --upgrade pip
+    sudo -H -u "$RUN_USER" "$PANEL_DIR/venv/bin/pip" install -r "$PANEL_DIR/requirements.txt"
+    GUNICORN_BIN="$PANEL_DIR/venv/bin/gunicorn"
+else
+    echo "  >> Installing with --user (no virtual environment)"
+    sudo -H -u "$RUN_USER" python3 -m pip install --upgrade pip
+    sudo -H -u "$RUN_USER" python3 -m pip install --user -r "$PANEL_DIR/requirements.txt"
+    GUNICORN_BIN="$RUN_HOME/.local/bin/gunicorn"
+fi
+echo "  >> gunicorn: $GUNICORN_BIN"
 
 # ---------- 3. Directory layout ----------
 echo "[3/10] Creating directory layout..."
