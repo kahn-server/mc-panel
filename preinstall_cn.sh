@@ -170,9 +170,20 @@ apt-get install -y \
     curl wget git openssl
 
 # ---------- 2. Python 依赖 ----------
-echo "[2/10] 安装 Python 依赖 (--user)..."
-sudo -H -u "$RUN_USER" python3 -m pip install --upgrade pip
-sudo -H -u "$RUN_USER" python3 -m pip install --user -r "$PANEL_DIR/requirements.txt"
+echo "[2/10] 安装 Python 依赖..."
+if [[ "$USE_VENV" =~ ^[Yy]$ ]]; then
+    echo "  >> 正在创建虚拟环境：$PANEL_DIR/venv"
+    sudo -H -u "$RUN_USER" python3 -m venv "$PANEL_DIR/venv"
+    sudo -H -u "$RUN_USER" "$PANEL_DIR/venv/bin/pip" install --upgrade pip
+    sudo -H -u "$RUN_USER" "$PANEL_DIR/venv/bin/pip" install -r "$PANEL_DIR/requirements.txt"
+    GUNICORN_BIN="$PANEL_DIR/venv/bin/gunicorn"
+else
+    echo "  >> 使用 --user 安装（不使用虚拟环境）"
+    sudo -H -u "$RUN_USER" python3 -m pip install --upgrade pip
+    sudo -H -u "$RUN_USER" python3 -m pip install --user -r "$PANEL_DIR/requirements.txt"
+    GUNICORN_BIN="$RUN_HOME/.local/bin/gunicorn"
+fi
+echo "  >> gunicorn：$GUNICORN_BIN"
 
 # ---------- 3. 目录结构 ----------
 echo "[3/10] 创建目录结构..."
