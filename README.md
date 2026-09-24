@@ -4,7 +4,7 @@
 
 **English** | [Chinese](README_cn.md)
 
-![Python](https://img.shields.io/badge/python-3.8+-00d4ff) ![Flask](https://img.shields.io/badge/flask-3.0.3-000000) ![HTTPS](https://img.shields.io/badge/https-self--signed-4cc61e) ![License](https://img.shields.io/badge/license-MIT-ff2d95)
+![Python](https://img.shields.io/badge/python-3.10+-00d4ff) ![Flask](https://img.shields.io/badge/flask-3.1.3-000000) ![HTTPS](https://img.shields.io/badge/https-self--signed-4cc61e) ![License](https://img.shields.io/badge/license-MIT-ff2d95)
 
 **Highlights**
 
