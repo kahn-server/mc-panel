@@ -76,12 +76,14 @@ Client browser (HTTPS)
 
 ```
 /home/mcserver/.mc_panel/
-├── app.py              # Main program (single file, includes frontend template)
-├── preinstall.sh       # One-click installer (incl. MC management-type detection/confirm)
+├── app.py              # Main program (English version, for overseas users)
+├── app_cn.py           # Main program (Chinese version)
+├── preinstall.sh       # One-click installer (EN, deploys → ExecStart app:app)
+├── preinstall_cn.sh    # One-click installer (CN, deploys → ExecStart app_cn:app)
 ├── requirements.txt    # Python deps
 ├── gunicorn_config.py  # gunicorn config (proxy_protocol / cert)
-├── README.md           # This document
-├── README.md           # English version
+├── README.md           # English doc (this file)
+├── README_cn.md        # Chinese doc
 ├── certs/              # HTTPS certs (cert.pem / key.pem)
 ├── data/               # Panel data
 ├── static/avatars/     # Player avatar cache
@@ -93,7 +95,8 @@ Client browser (HTTPS)
 
 - Ubuntu / Debian (apt-based)
 - Python 3.8+
-- Runtime user (production: `mcserver`), deps installed with `--user`
+- Runtime user (production: `mcserver`)
+- Dependencies are installed in a **Python virtual environment by default** — preinstall asks `Use a Python virtual environment? (Y/n, default: y)`; answer `n` for the legacy `--user` install. You can also preset `USE_VENV=n` to skip the prompt.
 - MC server must enable RCON (`server.properties`: `enable-rcon=true`, port 25575)
 
 ## Quick Deploy
@@ -106,9 +109,10 @@ sudo bash preinstall.sh              # deploy to current user
 sudo bash preinstall.sh mcserver     # specify runtime user
 MCRCON_PASS=your_password sudo bash preinstall.sh   # preset RCON password (interactive otherwise)
 MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall.sh  # skip prompts, set directly
+USE_VENV=n sudo bash preinstall.sh                  # skip virtual environment (legacy --user install)
 ```
 
-The script does: system deps → Python deps (`--user`) → directory layout → self-signed HTTPS cert → **frp reverse-proxy prompt (none / PROXY v1 / PROXY v2)** → **separate backup-dir prompt (may leave empty)** → generate `SECRET_KEY` → **MC management-type auto-detect + user confirm** → env vars merged into the `mcpanel.service` main unit → **gunicorn config per frp mode** → sudoers no-password rules (`/etc/sudoers.d/mcpanel-<user>`) → write `mcpanel.service` → start.
+The script does: system deps → Python deps (**virtual environment by default**, `--user` optional) → directory layout → self-signed HTTPS cert → **frp reverse-proxy prompt (none / PROXY v1 / PROXY v2)** → **separate backup-dir prompt (may leave empty)** → generate `SECRET_KEY` → **MC management-type auto-detect + user confirm** → env vars merged into the `mcpanel.service` main unit → **gunicorn config per frp mode** → sudoers no-password rules (`/etc/sudoers.d/mcpanel-<user>`) → write `mcpanel.service` → start.
 
 **MC management-type flow**:
 1. Auto-detect: systemd units (`minecraft`/`paper`/`spigot`/`purpur`/`bukkit`/`mc`) → screen sessions → tmux sessions
@@ -121,10 +125,15 @@ The script does: system deps → Python deps (`--user`) → directory layout →
 ### Manual Deploy (reference)
 
 ```bash
-# deps
+# system deps
 sudo apt-get update -y
 sudo apt-get install -y python3 python3-pip python3-dev build-essential libssl-dev libffi-dev xvfb x11vnc
-sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
+
+# Python deps (virtual environment, recommended — matches preinstall default)
+sudo -H -u mcserver python3 -m venv /home/mcserver/.mc_panel/venv
+sudo -H -u mcserver /home/mcserver/.mc_panel/venv/bin/pip install -r requirements.txt
+# legacy --user alternative:
+# sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 
 # cert (generate if missing)
 cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=panel'
@@ -144,7 +153,8 @@ Environment="MCRCON_PASS=<RCON password>"
 Environment="MC_DIR=/data/minecraft_server"
 Environment="MC_LAUNCH_TYPE=systemd"
 Environment="MC_SERVICE_NAME=minecraft"
-ExecStart=/home/mcserver/.local/bin/gunicorn -c gunicorn_config.py app:app
+ExecStart=/home/mcserver/.mc_panel/venv/bin/gunicorn -c gunicorn_config.py app:app
+# legacy --user: ExecStart=/home/mcserver/.local/bin/gunicorn -c gunicorn_config.py app:app
 Restart=always
 RestartSec=5
 
