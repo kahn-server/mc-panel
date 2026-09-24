@@ -34,11 +34,11 @@
 
 | 组件 | 版本 | 说明 |
 |---|---|---|
-| Flask | 3.0.3 | Web 框架 |
+| Flask | 3.1.3 | Web 框架 |
 | Flask-SocketIO | 5.6.1 | 实时推送（async_mode=eventlet） |
 | Flask-Limiter | 3.8.0 | 登录限流 |
-| gunicorn | 23.0.0 | 生产服务器（eventlet worker，`proxy_protocol=True`） |
-| eventlet | 0.39.1 | 协程 worker |
+| gunicorn | 25.3.0 | 生产服务器（eventlet worker，`proxy_protocol=True`） |
+| eventlet | 0.41.2 | 协程 worker |
 | websockify | 0.13.0 | VNC → WebSocket（赛博面板嵌入） |
 | systemd | - | 服务托管 + 环境变量注入（主单元） |
 
