@@ -94,7 +94,7 @@ Client browser (HTTPS)
 ## Requirements
 
 - Ubuntu / Debian (apt-based)
-- Python 3.8+
+- Python 3.10+ (recommended 3.12 / 3.14; deps require ≥3.10 since Pillow 12 / eventlet 0.41)
 - Runtime user (production: `mcserver`)
 - Dependencies are installed in a **Python virtual environment by default** — preinstall asks `Use a Python virtual environment? (Y/n, default: y)`; answer `n` for the legacy `--user` install. You can also preset `USE_VENV=n` to skip the prompt.
 - MC server must enable RCON (`server.properties`: `enable-rcon=true`, port 25575)
