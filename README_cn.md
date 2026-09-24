@@ -84,7 +84,8 @@ mc-panel/
 
 - Ubuntu / Debian（基于 apt）
 - Python 3.8+
-- 运行用户（生产为 `mcserver`），依赖以 `--user` 安装
+- 运行用户（生产为 `mcserver`）
+- 依赖**默认装在 Python 虚拟环境中**——安装脚本会询问"是否使用 Python 虚拟环境？(Y/n，默认 y)"；选 `n` 走旧的 `--user` 安装；也可用 `USE_VENV=n` 跳过询问
 - MC 服务器开启 RCON（`server.properties`：`enable-rcon=true`，端口 25575）
 
 ## 快速部署
@@ -97,11 +98,12 @@ sudo bash preinstall_cn.sh              # 部署到当前用户（中文交互�
 sudo bash preinstall_cn.sh mcserver     # 指定运行用户
 MCRCON_PASS=你的密码 sudo bash preinstall_cn.sh   # 预置 RCON 密码（否则交互输入）
 MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall_cn.sh  # 跳过交互，直接指定
+USE_VENV=n sudo bash preinstall_cn.sh            # 跳过虚拟环境（旧式 --user 安装）
 ```
 
 > 海外用户请使用 `preinstall.sh`（英文版，对应 `app.py`），见 [README.md](README.md)。
 
-脚本自动完成：系统依赖 → Python 依赖（`--user`）→ 目录结构 → HTTPS 自签证书 → **交互询问 frp 反向代理（不用 / PROXY v1 / PROXY v2）** → **询问单独备份目录（可留空）** → 生成 `SECRET_KEY` → **MC 管理方式自动检测 + 用户确认** → 环境变量合并写入 `mcpanel.service` 主单元 → **按 frp 模式生成 gunicorn 配置** → 配置运行用户 sudo 免密（`/etc/sudoers.d/mcpanel-<用户>`）→ 写 `mcpanel.service` → 启动服务。
+脚本自动完成：系统依赖 → Python 依赖（**默认 venv 虚拟环境**，可交互选择）→ 目录结构 → HTTPS 自签证书 → **交互询问 frp 反向代理（不用 / PROXY v1 / PROXY v2）** → **询问单独备份目录（可留空）** → 生成 `SECRET_KEY` → **MC 管理方式自动检测 + 用户确认** → 环境变量合并写入 `mcpanel.service` 主单元 → **按 frp 模式生成 gunicorn 配置** → 配置运行用户 sudo 免密（`/etc/sudoers.d/mcpanel-<用户>`）→ 写 `mcpanel.service` → 启动服务。
 
 **MC 管理方式交互流程**：
 1. 脚本自动检测：systemd 服务单元（`minecraft`/`paper`/`spigot`/`purpur`/`bukkit`/`mc`）→ screen 会话 → tmux 会话
@@ -114,10 +116,15 @@ MC_LAUNCH_TYPE=systemd MC_SERVICE_NAME=mc sudo bash preinstall_cn.sh  # 跳过�
 ### 手动部署（参考）
 
 ```bash
-# 依赖
+# 系统依赖
 sudo apt-get update -y
 sudo apt-get install -y python3 python3-pip python3-dev build-essential libssl-dev libffi-dev xvfb x11vnc
-sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
+
+# Python 依赖（虚拟环境，推荐——与安装脚本默认一致）
+sudo -H -u mcserver python3 -m venv /home/mcserver/.mc_panel/venv
+sudo -H -u mcserver /home/mcserver/.mc_panel/venv/bin/pip install -r requirements.txt
+# 旧式 --user 备选：
+# sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 
 # 证书（没有则生成）
 cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=panel'
@@ -137,7 +144,8 @@ Environment="MCRCON_PASS=<RCON密码>"
 Environment="MC_DIR=/data/minecraft_server"
 Environment="MC_LAUNCH_TYPE=systemd"
 Environment="MC_SERVICE_NAME=minecraft"
-ExecStart=/home/mcserver/.local/bin/gunicorn -c gunicorn_config.py app:app
+ExecStart=/home/mcserver/.mc_panel/venv/bin/gunicorn -c gunicorn_config.py app_cn:app
+# 旧式 --user：ExecStart=/home/mcserver/.local/bin/gunicorn -c gunicorn_config.py app_cn:app
 Restart=always
 RestartSec=5
 
