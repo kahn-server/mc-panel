@@ -68,7 +68,7 @@ mc-panel/
 ├── preinstall.sh       # 一键部署脚本（英文版，部署后 ExecStart 指向 app.py）
 ├── preinstall_cn.sh    # 一键部署脚本（中文版，部署后 ExecStart 指向 app_cn.py）
 ├── requirements.txt    # Python 依赖
-├── gunicorn_config.py  # gunicorn 配置（proxy_protocol / cert）
+├── gunicorn_config.py  # 由 preinstall.sh 按 frp 模式生成（包内不含）
 ├── README.md           # 英文版文档
 ├── README_cn.md        # 本文档（中文）
 ├── certs/              # HTTPS 证书 (cert.pem / key.pem，部署时生成)
@@ -128,6 +128,21 @@ sudo -H -u mcserver /home/mcserver/.mc_panel/venv/bin/pip install -r requirement
 
 # 证书（没有则生成）
 cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365 -subj '/CN=panel'
+
+# gunicorn_config.py —— 包内不含此文件：preinstall.sh 会按 frp 模式（none/v1/v2）自动生成。
+# 手动部署请自行创建：
+cat > /home/mcserver/.mc_panel/gunicorn_config.py <<'EOF'
+bind = "0.0.0.0:8080"   # 局域网/直连用；若只经 frp 暴露请改为 127.0.0.1:8080
+workers = 1
+worker_class = "eventlet"
+accesslog = "-"
+EOF
+# 若面板经 frp（PROXY v1/v2）暴露，追加这两行：
+#   proxy_protocol = True
+#   proxy_allow_ips = ["127.0.0.1"]
+# 若使用 HTTPS，追加：
+#   certfile = "certs/cert.pem"
+#   keyfile = "certs/key.pem"
 
 # 环境变量：直接写进 mcpanel.service 主单元 [Service] 段
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
