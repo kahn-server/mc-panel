@@ -83,7 +83,7 @@ mc-panel/
 ## 环境要求
 
 - Ubuntu / Debian（基于 apt）
-- Python 3.8+
+- Python 3.10+（推荐 3.12 / 3.14；依赖要求 ≥3.10，因 Pillow 12 / eventlet 0.41）
 - 运行用户（生产为 `mcserver`）
 - 依赖**默认装在 Python 虚拟环境中**——安装脚本会询问"是否使用 Python 虚拟环境？(Y/n，默认 y)"；选 `n` 走旧的 `--user` 安装；也可用 `USE_VENV=n` 跳过询问
 - MC 服务器开启 RCON（`server.properties`：`enable-rcon=true`，端口 25575）
