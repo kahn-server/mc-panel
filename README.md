@@ -46,11 +46,11 @@
 
 | Component | Version | Note |
 |---|---|---|
-| Flask | 3.0.3 | Web framework |
+| Flask | 3.1.3 | Web framework |
 | Flask-SocketIO | 5.6.1 | Real-time push (async_mode=eventlet) |
 | Flask-Limiter | 3.8.0 | Login rate limiting |
-| gunicorn | 23.0.0 | Production server (eventlet worker, `proxy_protocol=True`) |
-| eventlet | 0.39.1 | Coroutine worker |
+| gunicorn | 25.3.0 | Production server (eventlet worker, `proxy_protocol=True`) |
+| eventlet | 0.41.2 | Coroutine worker |
 | websockify | 0.13.0 | VNC → WebSocket (Cyber panel) |
 | systemd | - | Service hosting + env injection (main unit) |
 
