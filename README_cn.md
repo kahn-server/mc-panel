@@ -276,6 +276,7 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 
 ## 变更记录
 
+- **2026-10-09（三）**：恢复模式监控数据同样改为普通 HTTP 轮询（`GET /api/recovery/monitor`），恢复模式页面彻底不依赖 SocketIO（SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，监控停止更新、监控栏显示 Error）；心跳超时后重新验证超级密码可稳定恢复访问
 - **2026-10-09（二）**：恢复模式心跳由 SocketIO 改为普通 HTTP 轮询——SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，心跳静默失效导致恢复会话 30 秒后过期（后续 `/recovery/*` 页面返回 404）；新增 `GET /api/recovery/heartbeat` 通过签名 cookie 续期 session 时间戳（跨 worker 生效）；SocketIO 仅保留实时监控推送
 - **2026-10-09**：恢复模式修复——回档备份列表不再要求 `backup` 前缀（备份目录内任意常见压缩格式均显示）；world 回档除 `.zip` 外支持 `.tar.gz` / `.tar.bz2` / `.tar.xz`；恢复授权改为 session 时间戳判定（多 worker 下安全，不再出现超级密码验证后随机 404）
 - **2026-09-23**：赛博面板联动改为独立脚本 `dashboard.sh` 管理（websockify 不再由面板自动拉起，移除死代码 `start_websockify`）；CPU 亲和改为按核心数自动计算（面板绑定末两位核心），支持 `PANEL_CPU_AFFINITY` / `DASH_CPU_AFFINITY` 环境变量覆盖

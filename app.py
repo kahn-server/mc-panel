@@ -2088,80 +2088,65 @@ body {
 
 RECOVERY_COMMON_JS = r"""
 const RECOVERY_SID = "{{ recovery_sid }}";
-const recoverySocket = io('/recovery', { transports: ['polling'] });
 function sendHeartbeat() {
     fetch('/api/recovery/heartbeat', { cache: 'no-store' }).catch(() => {});
 }
-recoverySocket.on('connect', () => { sendHeartbeat(); });
 setInterval(sendHeartbeat, 3000);
-recoverySocket.on('monitor', (data) => {
-    const t = document.getElementById('monTime');
-    const c = document.getElementById('monCpu');
-    const b = document.getElementById('monBat');
-    const l = document.getElementById('monLoad');
-    const u = document.getElementById('monUptime');
-    const k = document.getElementById('monKernel');
-    if (t) t.innerText = '🕒 ' + (data.time || '-');
-    if (u) u.innerText = '⏱️ ' + (data.uptime || '-');
-    if (k) k.innerText = '🐧 ' + (data.kernel || '-');
-    // CPU temperature
-    if (c) {
-        c.innerText = '🌡️ CPU ' + (data.cpu_temp || '-');
-        c.style.color = '';
-        if (data.cpu_temp && data.cpu_temp !== 'Error') {
-            const temp = parseFloat(data.cpu_temp);
-            if (!isNaN(temp)) {
-                if (temp > 85) c.style.color = '#ff3b30';
-                else if (temp > 75) c.style.color = '#ffd60a';
-            }
-        }
-    }
-    // Battery
-    if (b) {
-        b.innerText = '🔋 ' + (data.battery || '-');
-        b.style.color = '';
-        if (data.battery && data.battery !== 'Error') {
-            const pct = parseInt(data.battery);
-            if (!isNaN(pct)) {
-                if (pct < 20) b.style.color = '#ff3b30';
-                else if (pct < 50) b.style.color = '#ffd60a';
-            }
-        }
-    }
-    // Load (1-min value)
-    if (l) {
-        l.innerText = '📊 Load ' + (data.load || '-');
-        l.style.color = '';
-        if (data.load && data.load !== 'Error') {
-            const m = data.load.match(/([\d.]+)/);
-            if (m) {
-                const load1 = parseFloat(m[1]);
-                if (!isNaN(load1)) {
-                    if (load1 > 6) l.style.color = '#ff3b30';
-                    else if (load1 > 5) l.style.color = '#ffd60a';
-                }
-            }
-        }
-    }
-});
-let lastMonitorTime = Date.now();
-recoverySocket.on('monitor', () => { lastMonitorTime = Date.now(); });
-setInterval(() => {
-    if (Date.now() - lastMonitorTime > 10000) {
+async function refreshMonitor() {
+    try {
+        const res = await fetch('/api/recovery/monitor', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
         const t = document.getElementById('monTime');
         const c = document.getElementById('monCpu');
         const b = document.getElementById('monBat');
         const l = document.getElementById('monLoad');
         const u = document.getElementById('monUptime');
         const k = document.getElementById('monKernel');
-        if (t) { t.innerText = '🕒 Error'; t.style.color = '#ff3b30'; }
-        if (c) { c.innerText = '🌡️ CPU Error'; c.style.color = '#ff3b30'; }
-        if (b) { b.innerText = '🔋 Error'; b.style.color = '#ff3b30'; }
-        if (l) { l.innerText = '📊 Load Error'; l.style.color = '#ff3b30'; }
-        if (u) { u.innerText = '⏱️ Error'; u.style.color = '#ff3b30'; }
-        if (k) { k.innerText = '🐧 Error'; k.style.color = '#ff3b30'; }
-    }
-}, 3000);
+        if (t) t.innerText = '🕒 ' + (data.time || '-');
+        if (u) u.innerText = '⏱️ ' + (data.uptime || '-');
+        if (k) k.innerText = '🐧 ' + (data.kernel || '-');
+        if (c) {
+            c.innerText = '🌡️ CPU ' + (data.cpu_temp || '-');
+            c.style.color = '';
+            if (data.cpu_temp && data.cpu_temp !== 'Error') {
+                const temp = parseFloat(data.cpu_temp);
+                if (!isNaN(temp)) {
+                    if (temp > 85) c.style.color = '#ff3b30';
+                    else if (temp > 75) c.style.color = '#ffd60a';
+                }
+            }
+        }
+        if (b) {
+            b.innerText = '🔋 ' + (data.battery || '-');
+            b.style.color = '';
+            if (data.battery && data.battery !== 'Error') {
+                const pct = parseInt(data.battery);
+                if (!isNaN(pct)) {
+                    if (pct < 20) b.style.color = '#ff3b30';
+                    else if (pct < 50) b.style.color = '#ffd60a';
+                }
+            }
+        }
+        if (l) {
+            l.innerText = '📊 Load ' + (data.load || '-');
+            l.style.color = '';
+            if (data.load && data.load !== 'Error') {
+                const m = data.load.match(/([\d.]+)/);
+                if (m) {
+                    const load1 = parseFloat(m[1]);
+                    if (!isNaN(load1)) {
+                        if (load1 > 6) l.style.color = '#ff3b30';
+                        else if (load1 > 5) l.style.color = '#ffd60a';
+                    }
+                }
+            }
+        }
+    } catch (e) {}
+}
+setInterval(refreshMonitor, 3000);
+refreshMonitor();
+
 function goBackHome() {
     window.location.href = '/';
 }
@@ -3926,6 +3911,13 @@ def api_recovery_heartbeat():
         return jsonify({'ok': False}), 404
     session['recovery_ts'] = time.time()
     return jsonify({'ok': True})
+
+@app.route('/api/recovery/monitor')
+def api_recovery_monitor():
+    # HTTP monitor feed (SocketIO long-polling is not sticky across workers)
+    if not recovery_authorized():
+        return jsonify({'ok': False}), 404
+    return jsonify(get_recovery_monitor_data())
 
 @app.route('/api/recovery/backups')
 def api_recovery_backups():
