@@ -2090,9 +2090,7 @@ RECOVERY_COMMON_JS = r"""
 const RECOVERY_SID = "{{ recovery_sid }}";
 const recoverySocket = io('/recovery', { transports: ['polling'] });
 function sendHeartbeat() {
-    if (recoverySocket.connected) {
-        recoverySocket.emit('recovery-heartbeat', { recovery_sid: RECOVERY_SID });
-    }
+    fetch('/api/recovery/heartbeat', { cache: 'no-store' }).catch(() => {});
 }
 recoverySocket.on('connect', () => { sendHeartbeat(); });
 setInterval(sendHeartbeat, 3000);
@@ -3921,6 +3919,14 @@ def api_recovery_reboot():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 # ---------- Recovery Mode: Backup List ----------
+@app.route('/api/recovery/heartbeat')
+def api_recovery_heartbeat():
+    # HTTP heartbeat: refresh the recovery session timestamp (multi-worker safe)
+    if not recovery_authorized():
+        return jsonify({'ok': False}), 404
+    session['recovery_ts'] = time.time()
+    return jsonify({'ok': True})
+
 @app.route('/api/recovery/backups')
 def api_recovery_backups():
     if not recovery_authorized():
