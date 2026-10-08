@@ -281,6 +281,7 @@ The panel footer has **two hidden triggers disguised as plain text**. Each requi
 
 ## Changelog
 
+- **2026-10-09**: Recovery-mode fixes — rollback backup list no longer requires the `backup` name prefix (any common archive under the backup dir is listed); world rollback now supports `.tar.gz` / `.tar.bz2` / `.tar.xz` in addition to `.zip`; recovery authorization now uses a session timestamp (multi-worker safe — no more random 404 right after super-password verification)
 - **2026-09-23**: Cyber-panel integration moved to standalone `dashboard.sh` management (websockify is no longer auto-started by the panel; dead code `start_websockify` removed); CPU affinity now auto-computed from core count (panel pinned to the last two cores), overridable via `PANEL_CPU_AFFINITY` / `DASH_CPU_AFFINITY`
 - **2026-09-22**: Detection moved out of the panel — `detect_mc_launcher` now only reads `MC_LAUNCH_TYPE` (zero systemctl/screen/tmux probes); preinstall.sh added management-type auto-detect (systemd→screen→tmux) + user confirm + manual entry (type/name/screen·tmux launch cmd `MC_LAUNCH_CMD`); added **⚡ Quick Restart** (systemd `systemctl restart` directly, not stop+start) and direct restart after server-core upgrade; env vars merged into the mcpanel.service main unit
 - **2026-09-21 (4)**: Service-name & backup-dir fallbacks — auto-scan systemd services when `MC_SERVICE_NAME` unset; preinstall.sh auto-detects the service name; auto-creates default backup dir with `plugins_bak`/`server_jar_bak` subdirs

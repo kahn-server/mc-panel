@@ -410,6 +410,9 @@ def recovery_authorized():
     """Check if the current session passed recovery-mode verification and the heartbeat has not expired"""
     if not session.get('recovery_authorized'):
         return False
+    ts = session.get('recovery_ts')
+    if ts is not None:
+        return time.time() - ts <= RECOVERY_HEARTBEAT_TIMEOUT
     rid = session.get('recovery_sid')
     if not rid:
         return False
@@ -1056,7 +1059,7 @@ def is_valid_image(data):
     return False
 
 def do_restore_world(task_id, zip_path):
-    """Background thread: restore world from backup zip"""
+    """Background thread: restore world from backup zip/tar.gz"""
     task = restore_tasks.get(task_id)
     if not task:
         return
@@ -1075,27 +1078,58 @@ def do_restore_world(task_id, zip_path):
         if os.path.exists(world_dir):
             shutil.rmtree(world_dir)
 
-        # Only read the world/ directory inside the zip
+        # Only read the world/ directory inside the archive (zip / tar.gz / tar.bz2 / tar.xz)
         task['status'] = 'extracting'
         task['message'] = 'Extracting...'
         mc_abs = os.path.abspath(MC_DIR)
-        with zipfile.ZipFile(zip_path, 'r') as zf:
-            world_entries = [info for info in zf.infolist() if info.filename == 'world' or info.filename.startswith('world/')]
-            total_size = sum(info.file_size for info in world_entries if not info.is_dir())
-            task['total'] = total_size
-            task['progress'] = 0
-            extracted = 0
-            for info in world_entries:
-                target = os.path.abspath(os.path.join(MC_DIR, info.filename))
-                if not (target == mc_abs or target.startswith(mc_abs + os.sep)):
-                    continue
-                if info.is_dir():
-                    os.makedirs(target, exist_ok=True)
-                else:
-                    os.makedirs(os.path.dirname(target), exist_ok=True)
-                    with zf.open(info) as src, open(target, 'wb') as dst:
-                        shutil.copyfileobj(src, dst)
-                    extracted += info.file_size
+
+        def _safe_target(member_name):
+            target = os.path.abspath(os.path.join(MC_DIR, member_name))
+            if target == mc_abs or target.startswith(mc_abs + os.sep):
+                return target
+            return None
+
+        def _extract_file(member_name, src, member_size):
+            target = _safe_target(member_name)
+            if not target:
+                return 0
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with src, open(target, 'wb') as dst:
+                shutil.copyfileobj(src, dst)
+            return member_size
+
+        task['total'] = 0
+        task['progress'] = 0
+        extracted = 0
+        if zip_path.lower().endswith('.zip'):
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                world_entries = [info for info in zf.infolist() if info.filename == 'world' or info.filename.startswith('world/')]
+                total_size = sum(info.file_size for info in world_entries if not info.is_dir())
+                task['total'] = total_size
+                for info in world_entries:
+                    if info.is_dir():
+                        t = _safe_target(info.filename)
+                        if t:
+                            os.makedirs(t, exist_ok=True)
+                    else:
+                        with zf.open(info) as src:
+                            extracted += _extract_file(info.filename, src, info.file_size)
+                    task['progress'] = extracted
+                    task['percent'] = round(extracted / total_size * 100, 1) if total_size else 100.0
+        else:
+            import tarfile
+            with tarfile.open(zip_path, 'r:*') as tf:
+                world_entries = [m for m in tf.getmembers() if m.name == 'world' or m.name.startswith('world/')]
+                total_size = sum(m.size for m in world_entries if m.isfile())
+                task['total'] = total_size
+                for m in world_entries:
+                    if m.isdir():
+                        t = _safe_target(m.name)
+                        if t:
+                            os.makedirs(t, exist_ok=True)
+                    elif m.isfile():
+                        with tf.extractfile(m) as src:
+                            extracted += _extract_file(m.name, src, m.size)
                     task['progress'] = extracted
                     task['percent'] = round(extracted / total_size * 100, 1) if total_size else 100.0
 
@@ -1103,6 +1137,8 @@ def do_restore_world(task_id, zip_path):
         task['message'] = 'Restore complete'
         task['percent'] = 100.0
     except Exception as e:
+        task['status'] = 'error'
+        task["message"] = f"Restore failed: {e}"
         task['status'] = 'error'
         task['message'] = f'Restore failed: {e}'
 
@@ -3690,6 +3726,7 @@ def api_verify_super_password():
         session['recovery_authorized'] = True
         rid = os.urandom(16).hex()
         session['recovery_sid'] = rid
+        session['recovery_ts'] = time.time()
         with recovery_lock:
             recovery_sessions[rid] = time.time()
         audit_log(session.get('username', 'Unknown'), "Super password verify", "Success")
@@ -3895,7 +3932,7 @@ def api_recovery_backups():
                 continue
             name = os.path.basename(f)
             lname = name.lower()
-            if not (lname.startswith('backup') and lname.endswith('.zip')):
+            if not lname.endswith(('.zip', '.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tar.xz')):
                 continue
             stat = os.stat(f)
             items.append({
@@ -4117,6 +4154,11 @@ def handle_recovery_heartbeat(data):
     rid = (data or {}).get('recovery_sid')
     if not rid:
         return
+    try:
+        if session.get('recovery_authorized') and session.get('recovery_sid') == rid:
+            session['recovery_ts'] = time.time()
+    except Exception:
+        pass
     with recovery_lock:
         # Only update when the session exists (prevent forging rid to create a new valid session)
         if rid in recovery_sessions:
@@ -4146,6 +4188,9 @@ def _check_terminal_auth():
     try:
         if not session.get('recovery_authorized'):
             return False
+        ts = session.get('recovery_ts')
+        if ts is not None:
+            return time.time() - ts <= RECOVERY_HEARTBEAT_TIMEOUT
         rid = session.get('recovery_sid')
         if not rid:
             return False

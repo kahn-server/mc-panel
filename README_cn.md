@@ -272,6 +272,7 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 
 ## 变更记录
 
+- **2026-10-09**：恢复模式修复——回档备份列表不再要求 `backup` 前缀（备份目录内任意常见压缩格式均显示）；world 回档除 `.zip` 外支持 `.tar.gz` / `.tar.bz2` / `.tar.xz`；恢复授权改为 session 时间戳判定（多 worker 下安全，不再出现超级密码验证后随机 404）
 - **2026-09-23**：赛博面板联动改为独立脚本 `dashboard.sh` 管理（websockify 不再由面板自动拉起，移除死代码 `start_websockify`）；CPU 亲和改为按核心数自动计算（面板绑定末两位核心），支持 `PANEL_CPU_AFFINITY` / `DASH_CPU_AFFINITY` 环境变量覆盖
 - **2026-09-22**：检测逻辑彻底移出面板——`detect_mc_launcher` 改为纯读 `MC_LAUNCH_TYPE` 环境变量（不再执行 systemctl/screen/tmux 任何探测）；preinstall.sh 新增管理方式自动检测（systemd→screen→tmux）+ 用户确认 + 手动填写（类型/服务名/screen·tmux 启动命令 `MC_LAUNCH_CMD`）；新增 **⚡ 快速重启**（systemd 直接 `systemctl restart`，不拆 stop/start）与服务端升级后直接重启；环境变量合并进 mcpanel.service 主单元
 - **2026-09-21（四）**：服务名与备份目录兜底——`MC_SERVICE_NAME` 未设置时自动扫描 systemd 服务识别 MC 服务；preinstall.sh 自动检测服务名；备份目录未指定时脚本自动建默认备份目录及 `plugins_bak`/`server_jar_bak` 子目录
