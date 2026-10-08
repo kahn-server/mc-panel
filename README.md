@@ -75,7 +75,7 @@ Client browser (HTTPS)
 ## Directory Layout
 
 ```
-/home/mcserver/.mc_panel/
+mc-panel/
 ├── app.py              # Main program (English version, for overseas users)
 ├── app_cn.py           # Main program (Chinese version)
 ├── preinstall.sh       # One-click installer (EN, deploys → ExecStart app:app)
@@ -104,7 +104,7 @@ Client browser (HTTPS)
 ### One-click script
 
 ```bash
-cd /home/mcserver/.mc_panel
+cd mc-panel
 sudo bash preinstall.sh              # deploy to current user
 sudo bash preinstall.sh mcserver     # specify runtime user
 MCRCON_PASS=your_password sudo bash preinstall.sh   # preset RCON password (interactive otherwise)
@@ -129,9 +129,12 @@ The script does: system deps → Python deps (**virtual environment by default**
 sudo apt-get update -y
 sudo apt-get install -y python3 python3-pip python3-dev build-essential libssl-dev libffi-dev xvfb x11vnc
 
+# go to your panel directory first (change the path to yours)
+cd /path/to/mc-panel
+
 # Python deps (virtual environment, recommended — matches preinstall default)
-sudo -H -u mcserver python3 -m venv /home/mcserver/.mc_panel/venv
-sudo -H -u mcserver /home/mcserver/.mc_panel/venv/bin/pip install -r requirements.txt
+sudo -H -u mcserver python3 -m venv ./venv
+sudo -H -u mcserver ./venv/bin/pip install -r requirements.txt
 # legacy --user alternative:
 # sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 
@@ -140,7 +143,7 @@ cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.
 
 # gunicorn_config.py — NOT shipped in the package: preinstall.sh generates it
 # per frp mode (none/v1/v2). For manual deploy, create it yourself:
-cat > /home/mcserver/.mc_panel/gunicorn_config.py <<'EOF'
+cat > ./gunicorn_config.py <<'EOF'
 bind = "0.0.0.0:8080"   # LAN/direct access; use 127.0.0.1:8080 if you only expose via frp
 workers = 1
 worker_class = "eventlet"
@@ -154,6 +157,7 @@ EOF
 #   keyfile = "certs/key.pem"
 
 # Env vars go directly into the mcpanel.service main unit [Service] section
+# Replace <panel_dir> below with your actual panel directory (where app.py lives)
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
 [Unit]
 Description=MCPanel Minecraft Management Panel
@@ -162,14 +166,14 @@ After=network.target
 [Service]
 User=mcserver
 Group=mcserver
-WorkingDirectory=/home/mcserver/.mc_panel
+WorkingDirectory=<panel_dir>
 Environment="SECRET_KEY=<generated key>"
 Environment="MCRCON_PASS=<RCON password>"
 Environment="MC_DIR=/data/minecraft_server"
 Environment="MC_LAUNCH_TYPE=systemd"
 Environment="MC_SERVICE_NAME=minecraft"
-ExecStart=/home/mcserver/.mc_panel/venv/bin/gunicorn -c gunicorn_config.py app:app
-# legacy --user: ExecStart=/home/mcserver/.local/bin/gunicorn -c gunicorn_config.py app:app
+ExecStart=<panel_dir>/venv/bin/gunicorn -c gunicorn_config.py app:app
+# legacy --user: ExecStart=<panel_dir>/.local/bin/gunicorn -c gunicorn_config.py app:app
 Restart=always
 RestartSec=5
 

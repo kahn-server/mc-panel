@@ -120,9 +120,12 @@ USE_VENV=n sudo bash preinstall_cn.sh            # 跳过虚拟环境（旧式 -
 sudo apt-get update -y
 sudo apt-get install -y python3 python3-pip python3-dev build-essential libssl-dev libffi-dev xvfb x11vnc
 
+# 先进入你的面板目录（把路径换成你自己的）
+cd /path/to/mc-panel
+
 # Python 依赖（虚拟环境，推荐——与安装脚本默认一致）
-sudo -H -u mcserver python3 -m venv /home/mcserver/.mc_panel/venv
-sudo -H -u mcserver /home/mcserver/.mc_panel/venv/bin/pip install -r requirements.txt
+sudo -H -u mcserver python3 -m venv ./venv
+sudo -H -u mcserver ./venv/bin/pip install -r requirements.txt
 # 旧式 --user 备选：
 # sudo -H -u mcserver python3 -m pip install --user -r requirements.txt
 
@@ -131,7 +134,7 @@ cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.
 
 # gunicorn_config.py —— 包内不含此文件：preinstall.sh 会按 frp 模式（none/v1/v2）自动生成。
 # 手动部署请自行创建：
-cat > /home/mcserver/.mc_panel/gunicorn_config.py <<'EOF'
+cat > ./gunicorn_config.py <<'EOF'
 bind = "0.0.0.0:8080"   # 局域网/直连用；若只经 frp 暴露请改为 127.0.0.1:8080
 workers = 1
 worker_class = "eventlet"
@@ -145,6 +148,7 @@ EOF
 #   keyfile = "certs/key.pem"
 
 # 环境变量：直接写进 mcpanel.service 主单元 [Service] 段
+# 下面 <panel_dir> 请替换为你的实际面板目录（app.py 所在位置）
 sudo tee /etc/systemd/system/mcpanel.service >/dev/null <<'EOF'
 [Unit]
 Description=MCPanel Minecraft Management Panel
@@ -153,14 +157,14 @@ After=network.target
 [Service]
 User=mcserver
 Group=mcserver
-WorkingDirectory=/home/mcserver/.mc_panel
+WorkingDirectory=<panel_dir>
 Environment="SECRET_KEY=<新生成的密钥>"
 Environment="MCRCON_PASS=<RCON密码>"
 Environment="MC_DIR=/data/minecraft_server"
 Environment="MC_LAUNCH_TYPE=systemd"
 Environment="MC_SERVICE_NAME=minecraft"
-ExecStart=/home/mcserver/.mc_panel/venv/bin/gunicorn -c gunicorn_config.py app_cn:app
-# 旧式 --user：ExecStart=/home/mcserver/.local/bin/gunicorn -c gunicorn_config.py app_cn:app
+ExecStart=<panel_dir>/venv/bin/gunicorn -c gunicorn_config.py app_cn:app
+# 旧式 --user：ExecStart=<panel_dir>/.local/bin/gunicorn -c gunicorn_config.py app_cn:app
 Restart=always
 RestartSec=5
 
