@@ -2365,12 +2365,17 @@ function initTerminal() {
     fitAddon.fit();
     term.focus();
 
-    termSocket = io('/terminal', { transports: ['polling'] });
-    termSocket.on('terminal-output', (data) => { if (data && data.data) term.write(data.data); });
-    termSocket.on('terminal-exit', () => { goBackRecovery(); });
-    termSocket.on('connect', () => {
-        termSocket.emit('terminal-init', { cols: term.cols, rows: term.rows });
-    });
+    const wsCsrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    const wsScheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    termSocket = new WebSocket(wsScheme + location.host + '/terminal-ws?token=' + encodeURIComponent(wsCsrf));
+    termSocket.onmessage = (ev) => {
+        try {
+            const m = JSON.parse(ev.data);
+            if (m.t === 'output' && m.d) term.write(m.d);
+            else if (m.t === 'exit') { goBackRecovery(); }
+        } catch (e) {}
+    };
+    termSocket.onopen = () => { termSocket.send(JSON.stringify({t:'init', cols: term.cols, rows: term.rows})); };
 
     term.onData(data => {
         if (ctrlPressed || altPressed) {
@@ -2387,18 +2392,18 @@ function initTerminal() {
                     else if (data === ' ') seq = '\x00';
                 }
                 if (altPressed) seq = '\x1b' + seq;
-                if (termSocket && termSocket.connected) termSocket.emit('terminal-input', { data: seq });
+                if (termSocket && termSocket.readyState === WebSocket.OPEN) termSocket.send(JSON.stringify({t:'in', d: seq}));
                 ctrlPressed = false; altPressed = false;
                 document.querySelectorAll('.key-btn.modifier').forEach(b => b.classList.remove('active'));
             }
         } else {
-            if (termSocket && termSocket.connected) termSocket.emit('terminal-input', { data });
+            if (termSocket && termSocket.readyState === WebSocket.OPEN) termSocket.send(JSON.stringify({t:'in', d: data}));
         }
     });
 
     window.addEventListener('resize', () => {
         if (fitAddon) fitAddon.fit();
-        if (termSocket && termSocket.connected) termSocket.emit('terminal-resize', { cols: term.cols, rows: term.rows });
+        if (termSocket && termSocket.readyState === WebSocket.OPEN) termSocket.send(JSON.stringify({t:'resize', cols: term.cols, rows: term.rows}));
     });
 
     document.querySelectorAll('.key-btn[data-key]').forEach(btn => {
@@ -2438,7 +2443,7 @@ function sendKey(key) {
         case 'pgup': seq = '\x1b[5~'; break;
         case 'pgdn': seq = '\x1b[6~'; break;
     }
-    if (seq && termSocket && termSocket.connected) termSocket.emit('terminal-input', { data: seq });
+    if (seq && termSocket && termSocket.readyState === WebSocket.OPEN) termSocket.send(JSON.stringify({t:'in', d: seq}));
     ctrlPressed = false; altPressed = false;
     document.querySelectorAll('.key-btn.modifier').forEach(b => b.classList.remove('active'));
 }
@@ -4202,6 +4207,95 @@ def _check_terminal_auth():
     except Exception:
         return False
 
+@app.route('/terminal-ws', websocket=True)
+def terminal_ws():
+    # Recovery shell over native WebSocket (multi-worker safe).
+    # Multi-layer auth: 1) recovery session with valid heartbeat
+    #                  2) same-origin check (Origin header)
+    #                  3) CSRF token handshake (?token=)
+    # Opens a pty on connect, kills it on disconnect.
+    if not _check_terminal_auth():
+        return '', 403
+    origin = request.headers.get('Origin', '')
+    if origin and request.host and request.host not in origin:
+        return '', 403
+    tok = request.args.get('token', '')
+    if not tok or tok != session.get('csrf_token', ''):
+        return '', 403
+    ws = Server.accept(request.environ)
+    sid = 'ws:%s' % id(ws)
+    if sid in terminals:
+        cleanup_terminal(sid)
+    pid, master_fd = pty.fork()
+    if pid == 0:
+        env = os.environ.copy()
+        env['TERM'] = 'xterm-256color'
+        env['HOME'] = '/home/mcserver'
+        try:
+            os.chdir('/home/mcserver')
+        except Exception:
+            os.chdir('/')
+        try:
+            os.execve('/bin/bash', ['/bin/bash'], env)
+        except Exception:
+            os._exit(1)
+    else:
+        terminals[sid] = {'master_fd': master_fd, 'pid': pid}
+        try:
+            while True:
+                msg = ws.receive(timeout=0.2)
+                if msg is not None:
+                    try:
+                        obj = json.loads(msg)
+                    except Exception:
+                        obj = None
+                    if isinstance(obj, dict):
+                        t = obj.get('t')
+                        if t in ('init', 'resize'):
+                            try:
+                                set_winsize(master_fd, int(obj.get('rows', 24)), int(obj.get('cols', 80)))
+                            except Exception:
+                                pass
+                        elif t == 'in':
+                            d = obj.get('d')
+                            if d:
+                                try:
+                                    os.write(master_fd, d.encode())
+                                except Exception:
+                                    pass
+                        elif t == 'exit':
+                            break
+                    elif msg:
+                        try:
+                            os.write(master_fd, msg.encode())
+                        except Exception:
+                            pass
+                try:
+                    r, _, _ = select.select([master_fd], [], [], 0)
+                    if r:
+                        data = os.read(master_fd, 1024)
+                        if not data:
+                            try:
+                                ws.send('{"t":"exit"}')
+                            except Exception:
+                                pass
+                            break
+                        try:
+                            ws.send(json.dumps({'t': 'output', 'd': data.decode('utf-8', errors='replace')}))
+                        except Exception:
+                            break
+                except OSError:
+                    break
+        except Exception:
+            pass
+        finally:
+            cleanup_terminal(sid)
+            try:
+                ws.close()
+            except Exception:
+                pass
+    return None
+
 @socketio.on('terminal-init', namespace='/terminal')
 def handle_terminal_init(data):
     sid = request.sid
@@ -4270,6 +4364,13 @@ def cleanup_terminal(sid):
             os.kill(terminals[sid]['pid'], signal.SIGTERM)
             try: os.kill(terminals[sid]['pid'], signal.SIGKILL)
             except: pass
+            try:
+                for _ in range(10):
+                    if os.waitpid(terminals[sid]['pid'], os.WNOHANG)[0]:
+                        break
+                    time.sleep(0.05)
+            except Exception:
+                pass
         except: pass
         terminals.pop(sid, None)
 

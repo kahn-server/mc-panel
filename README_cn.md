@@ -276,6 +276,7 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 
 ## 变更记录
 
+- **2026-10-09（四）**：恢复模式 Shell 终端由 SocketIO 长轮询改为原生 WebSocket（`/terminal-ws`）——连接即打开 pty、断开即结束进程，实时双向交互；WebSocket 握手三重验证（恢复会话心跳 + Origin 同源 + CSRF token），多 worker 下的 404 与终端极慢问题一并解决
 - **2026-10-09（三）**：恢复模式监控数据同样改为普通 HTTP 轮询（`GET /api/recovery/monitor`），恢复模式页面彻底不依赖 SocketIO（SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，监控停止更新、监控栏显示 Error）；心跳超时后重新验证超级密码可稳定恢复访问
 - **2026-10-09（二）**：恢复模式心跳由 SocketIO 改为普通 HTTP 轮询——SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，心跳静默失效导致恢复会话 30 秒后过期（后续 `/recovery/*` 页面返回 404）；新增 `GET /api/recovery/heartbeat` 通过签名 cookie 续期 session 时间戳（跨 worker 生效）；SocketIO 仅保留实时监控推送
 - **2026-10-09**：恢复模式修复——回档备份列表不再要求 `backup` 前缀（备份目录内任意常见压缩格式均显示）；world 回档除 `.zip` 外支持 `.tar.gz` / `.tar.bz2` / `.tar.xz`；恢复授权改为 session 时间戳判定（多 worker 下安全，不再出现超级密码验证后随机 404）
