@@ -35,10 +35,10 @@
 | 组件 | 版本 | 说明 |
 |---|---|---|
 | Flask | 3.1.3 | Web 框架 |
-| Flask-SocketIO | 5.6.1 | 实时推送（async_mode=eventlet） |
+| Flask-SocketIO | 5.6.1 | 实时推送（async_mode=gevent） |
 | Flask-Limiter | 3.8.0 | 登录限流 |
-| gunicorn | 25.3.0 | 生产服务器（eventlet worker，`proxy_protocol=True`） |
-| eventlet | 0.41.2 | 协程 worker |
+| gunicorn | 26.2.0 | 生产服务器（gevent worker，`proxy_protocol=True`） |
+| gevent | 26.9.0 | 协程 worker（gunicorn 26 已移除 eventlet worker） |
 | websockify | 0.13.0 | VNC → WebSocket（赛博面板嵌入） |
 | systemd | - | 服务托管 + 环境变量注入（主单元） |
 
@@ -49,7 +49,7 @@
       │  <VPS公网IP>:8080 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
-│  gunicorn (eventlet)        │
+│  gunicorn (gevent)        │
 │  ┌───────────────────────┐  │
 │  │ app.py (Flask + SIO)  │  │
 │  │  RCONClient(纯socket) │──┼──► MC 服务器 RCON 127.0.0.1:25575
@@ -276,6 +276,7 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 
 ## 变更记录
 
+- **2026-10-11**：终端 WebSocket 403 修复（recovery 终端页缺少 CSRF meta → token 为空 → 握手被拒；终端页新增连接状态条）；顶部监控状态栏轮询连续失败 10 秒后显示红色 ⚠️ Error；gunicorn 25.3.0 → 26.2.0（26 已移除 eventlet worker），改用 gevent worker（gevent 26.9.0 + gevent-websocket 0.10.1），依赖/安装脚本/文档同步更新。
 - **2026-10-09（四）**：恢复模式 Shell 终端由 SocketIO 长轮询改为原生 WebSocket（`/terminal-ws`）——连接即打开 pty、断开即结束进程，实时双向交互；WebSocket 握手三重验证（恢复会话心跳 + Origin 同源 + CSRF token），多 worker 下的 404 与终端极慢问题一并解决
 - **2026-10-09（三）**：恢复模式监控数据同样改为普通 HTTP 轮询（`GET /api/recovery/monitor`），恢复模式页面彻底不依赖 SocketIO（SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，监控停止更新、监控栏显示 Error）；心跳超时后重新验证超级密码可稳定恢复访问
 - **2026-10-09（二）**：恢复模式心跳由 SocketIO 改为普通 HTTP 轮询——SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，心跳静默失效导致恢复会话 30 秒后过期（后续 `/recovery/*` 页面返回 404）；新增 `GET /api/recovery/heartbeat` 通过签名 cookie 续期 session 时间戳（跨 worker 生效）；SocketIO 仅保留实时监控推送

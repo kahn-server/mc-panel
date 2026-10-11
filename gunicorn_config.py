@@ -1,0 +1,9 @@
+bind = "127.0.0.1:8080"
+workers = 4
+worker_class = "gevent"
+worker_connections = 1000
+certfile = "certs/cert.pem"
+keyfile = "certs/key.pem"
+proxy_protocol = True
+proxy_allow_ips = "127.0.0.1"
+accesslog = "-"

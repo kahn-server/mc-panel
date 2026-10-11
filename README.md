@@ -47,10 +47,10 @@
 | Component | Version | Note |
 |---|---|---|
 | Flask | 3.1.3 | Web framework |
-| Flask-SocketIO | 5.6.1 | Real-time push (async_mode=eventlet) |
+| Flask-SocketIO | 5.6.1 | Real-time push (async_mode=gevent) |
 | Flask-Limiter | 3.8.0 | Login rate limiting |
-| gunicorn | 25.3.0 | Production server (eventlet worker, `proxy_protocol=True`) |
-| eventlet | 0.41.2 | Coroutine worker |
+| gunicorn | 26.2.0 | Production server (gevent worker, `proxy_protocol=True`) |
+| gevent | 26.9.0 | Coroutine worker (gunicorn 26 removed the eventlet worker) |
 | websockify | 0.13.0 | VNC → WebSocket (Cyber panel) |
 | systemd | - | Service hosting + env injection (main unit) |
 
@@ -61,7 +61,7 @@ Client browser (HTTPS)
       │  <VPS_PUBLIC_IP>:8080 (frp) → 127.0.0.1:8080
       ▼
 ┌─────────────────────────────┐
-│  gunicorn (eventlet)        │
+│  gunicorn (gevent)        │
 │  ┌───────────────────────┐  │
 │  │ app.py (Flask + SIO)  │  │
 │  │  RCONClient(socket)   │──┼──► MC RCON 127.0.0.1:25575
@@ -94,7 +94,7 @@ mc-panel/
 ## Requirements
 
 - Ubuntu / Debian (apt-based)
-- Python 3.10+ (recommended 3.12 / 3.14; deps require ≥3.10 since Pillow 12 / eventlet 0.41)
+- Python 3.10+ (recommended 3.12 / 3.14; deps require ≥3.10 since Pillow 12 / gevent 26)
 - Runtime user (production: `mcserver`)
 - Dependencies are installed in a **Python virtual environment by default** — preinstall asks `Use a Python virtual environment? (Y/n, default: y)`; answer `n` for the legacy `--user` install. You can also preset `USE_VENV=n` to skip the prompt.
 - MC server must enable RCON (`server.properties`: `enable-rcon=true`, port 25575)
@@ -146,7 +146,8 @@ cd certs && openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.
 cat > ./gunicorn_config.py <<'EOF'
 bind = "0.0.0.0:8080"   # LAN/direct access; use 127.0.0.1:8080 if you only expose via frp
 workers = 1
-worker_class = "eventlet"
+worker_class = "gevent"
+worker_connections = 1000
 accesslog = "-"
 EOF
 # If you expose the panel through frp (PROXY v1/v2), append these two lines:
@@ -285,6 +286,7 @@ The panel footer has **two hidden triggers disguised as plain text**. Each requi
 
 ## Changelog
 
+- **2026-10-11**: Terminal WebSocket 403 fixed (recovery shell page missing CSRF meta -> empty token -> handshake rejected; terminal page now shows a connection status bar); recovery monitor bar shows red ⚠️ Error after 10s of polling failure; gunicorn 25.3.0 -> 26.2.0 (eventlet worker removed in 26) -> gevent worker (gevent 26.9.0 + gevent-websocket 0.10.1), deps/preinstall/README updated.
 - **2026-10-09 (4)**: Recovery-mode shell terminal moved from SocketIO long-polling to a native WebSocket (`/terminal-ws`). The terminal opens a pty on connect and kills the process on disconnect, with real-time two-way interaction; the WebSocket handshake is triple-validated (recovery session heartbeat + same-origin check + CSRF token). Multi-worker 404s and the painfully slow terminal (SocketIO polling is not sticky across workers) are resolved
 - **2026-10-09 (3)**: Recovery monitor feed moved to plain HTTP polling too (`GET /api/recovery/monitor`); the recovery pages no longer depend on SocketIO at all (SocketIO long-polling is not sticky across gunicorn workers, so the monitor stopped updating and the monitor bar showed Error under multi-worker setups). Re-verifying the super password after a heartbeat timeout now reliably restores access
 - **2026-10-09 (2)**: Recovery heartbeat switched from SocketIO to plain HTTP polling — SocketIO long-polling is not sticky across gunicorn workers, so the heartbeat silently stopped under multi-worker setups and the recovery session expired after 30s (subsequent `/recovery/*` pages returned 404). New `GET /api/recovery/heartbeat` keeps the session timestamp fresh through the signed cookie (worker-independent); SocketIO remains only for the monitor feed

@@ -6,7 +6,8 @@ python-socketio==5.16.3
 python-engineio==4.13.3
 simple-websocket==1.1.0
 websocket-client==1.9.2
-eventlet==0.41.2
-gunicorn==25.3.0
+gevent==26.9.0
+gevent-websocket==0.10.1
+gunicorn==26.2.0
 websockify==0.13.0
 Pillow==12.3.0

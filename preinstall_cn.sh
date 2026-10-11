@@ -306,7 +306,8 @@ cat > "$PANEL_DIR/gunicorn_config.py" <<EOF
 # KT-Anar mcpanel gunicorn 配置（由 preinstall.sh 按 frp 模式生成）
 bind = "$GUNI_BIND"
 workers = 1
-worker_class = "eventlet"
+worker_class = "gevent"
+worker_connections = 1000
 accesslog = "-"
 EOF
 if [ "$PANEL_PROTO" = "https" ]; then

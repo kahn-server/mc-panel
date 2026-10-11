@@ -307,7 +307,7 @@ def audit_log(username, action, details, success=True):
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
-socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*")
 
 # ---------- IP blacklist ----------
 blocked_ips = {}
@@ -2092,11 +2092,14 @@ function sendHeartbeat() {
     fetch('/api/recovery/heartbeat', { cache: 'no-store' }).catch(() => {});
 }
 setInterval(sendHeartbeat, 3000);
+let monFailSince = 0;
 async function refreshMonitor() {
+    let monOk = false;
     try {
         const res = await fetch('/api/recovery/monitor', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
+        monOk = true;
         const t = document.getElementById('monTime');
         const c = document.getElementById('monCpu');
         const b = document.getElementById('monBat');
@@ -2143,6 +2146,17 @@ async function refreshMonitor() {
             }
         }
     } catch (e) {}
+    const ms = document.getElementById('monStatus');
+    if (monOk) {
+        monFailSince = 0;
+        if (ms) { ms.innerText = ''; }
+    } else {
+        if (!monFailSince) monFailSince = Date.now();
+        if (ms && Date.now() - monFailSince >= 10000) {
+            ms.innerText = '⚠️ Error';
+            ms.style.color = '#ff3b30';
+        }
+    }
 }
 setInterval(refreshMonitor, 3000);
 refreshMonitor();
@@ -2164,6 +2178,7 @@ RECOVERY_MAIN_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF
 <style>""" + RECOVERY_BASE_STYLE + r"""</style>
 </head><body>
 <div class="recovery-monitor">
+    <span id="monStatus" style="font-weight:bold;"></span>
     <span id="monTime">🕒 -</span>
     <span class="sep">|</span>
     <span id="monCpu">🌡️ CPU -</span>
@@ -2280,6 +2295,7 @@ async function doReboot() {
 RECOVERY_SHELL_PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <title>KT-Anar - Linux Terminal</title>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <style>{{ _CSS_XTERM | safe }}</style>
 <script>{{ _JS_XTERM | safe }}</script>
 <script>{{ _JS_XTERM_FIT | safe }}</script>
@@ -2313,6 +2329,7 @@ html, body { margin: 0; padding: 0; background: #000; color: #fff; height: 100%;
 </style></head><body>
 <div id="terminalPage">
     <div class="terminal-header-bar">
+        <span id="connStatus" style="align-self:center;font-size:13px;color:#d29922;">● Connecting…</span>
         <button onclick="goBackRecovery()">⬅ Back</button>
     </div>
     <div id="terminal-container"></div>
@@ -2375,7 +2392,28 @@ function initTerminal() {
             else if (m.t === 'exit') { goBackRecovery(); }
         } catch (e) {}
     };
-    termSocket.onopen = () => { termSocket.send(JSON.stringify({t:'init', cols: term.cols, rows: term.rows})); };
+    termSocket.onopen = () => {
+        const cs = document.getElementById('connStatus');
+        if (cs) { cs.textContent = '● Connected'; cs.style.color = '#2ecc71'; }
+        termSocket.send(JSON.stringify({t:'init', cols: term.cols, rows: term.rows}));
+    };
+    termSocket.onerror = () => {
+        const cs = document.getElementById('connStatus');
+        if (cs) { cs.textContent = '✖ Connection failed'; cs.style.color = '#f85149'; }
+        try { term.write('\r\n\x1b[31m[Connection failed] Cannot reach the terminal server (handshake rejected).\x1b[0m\r\n'); } catch(e) {}
+    };
+    termSocket.onclose = (ev) => {
+        const cs = document.getElementById('connStatus');
+        if (cs) {
+            if (ev && ev.code === 1006) cs.textContent = '✖ Connection failed (HTTP 403 / network)';
+            else if (ev && ev.code === 1000) { cs.textContent = '● Closed'; cs.style.color = '#8b949e'; }
+            else cs.textContent = '✖ Connection closed (' + (ev ? ev.code : '?') + ')';
+            cs.style.color = (ev && ev.code === 1000) ? '#8b949e' : '#f85149';
+        }
+        if (ev && ev.code === 1006) {
+            try { term.write('\r\n\x1b[31m[Connection failed] Auth rejected (HTTP 403). Refresh this page to re-establish the session.\x1b[0m\r\n'); } catch(e) {}
+        }
+    };
 
     term.onData(data => {
         if (ctrlPressed || altPressed) {
@@ -4294,7 +4332,7 @@ def terminal_ws():
                 ws.close()
             except Exception:
                 pass
-    return None
+    return ''
 
 @socketio.on('terminal-init', namespace='/terminal')
 def handle_terminal_init(data):
