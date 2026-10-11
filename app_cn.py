@@ -5,6 +5,7 @@ import os, re, glob, shutil, subprocess, json, pty, signal, select, socket, stru
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, jsonify, request, send_file, render_template_string, session, redirect, url_for, Response
+from itsdangerous import URLSafeTimedSerializer
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 # 此文件由 pack_novnc.py 自动生成，请勿手动修改
@@ -174,12 +175,14 @@ if not RCON_PASS:
     raise RuntimeError("环境变量 MCRCON_PASS 未设置")
 PORT = 8080
 SECRET_KEY = os.environ.get("SECRET_KEY")
+# 恢复模式独立授权 cookie（签名、防伪造；与登录 session 解耦，避免被 login_required 的会话刷新覆盖）
+RECOVERY_AUTH_SERIALIZER = URLSafeTimedSerializer(SECRET_KEY, salt="recovery-auth")
 if not SECRET_KEY:
     raise RuntimeError("环境变量 SECRET_KEY 未设置")
 
 # ==================== 恢复模式配置 ====================
 RECOVERY_HEARTBEAT_INTERVAL = 10          # 前端每 10 秒发一次心跳
-RECOVERY_HEARTBEAT_TIMEOUT = 30           # 30 秒无心跳则清除
+RECOVERY_HEARTBEAT_TIMEOUT = 90           # 90 秒无心跳则清除（抗移动网络抖动）
 RECOVERY_ICON_MAX_SIZE = 2 * 1024 * 1024  # 图标最大 2MB
 recovery_sessions = {}                    # {recovery_sid: last_heartbeat_timestamp}
 recovery_lock = threading.Lock()
@@ -391,7 +394,9 @@ def login_required(f):
         if last_activity and (datetime.now() - datetime.fromtimestamp(last_activity)).total_seconds() > 900:
             session.clear()
             return jsonify({"error": "会话已过期"}), 401
-        session['last_activity'] = datetime.now().timestamp()
+        now_ts = datetime.now().timestamp()
+        if not last_activity or now_ts - last_activity > 60:
+            session['last_activity'] = now_ts
         return f(*a,**k)
     return dec
 
@@ -406,8 +411,33 @@ def admin_required(f):
     return dec
 
 # ==================== 恢复模式核心逻辑 ====================
+def _set_recovery_auth_cookie(resp, rid):
+    """签发独立 recovery 授权 cookie（签名，防伪造；与登录 session 解耦，避免被轮询覆盖）"""
+    resp.set_cookie("recovery_auth",
+                    RECOVERY_AUTH_SERIALIZER.dumps({"sid": rid, "ts": time.time(), "p": "ra"}),
+                    httponly=True, samesite="Lax", max_age=86400)
+
+def _read_recovery_auth():
+    """读取并校验 recovery 授权 cookie；缺失/签名无效/超龄返回 None"""
+    raw = request.cookies.get("recovery_auth")
+    if not raw:
+        return None
+    try:
+        payload = RECOVERY_AUTH_SERIALIZER.loads(raw, max_age=RECOVERY_HEARTBEAT_TIMEOUT * 3)
+        if payload.get("p") != "ra" or not payload.get("sid"):
+            return None
+        return payload
+    except Exception:
+        return None
+
+def _clear_recovery_auth_cookie(resp):
+    resp.set_cookie("recovery_auth", "", expires=0, max_age=0)
+
 def recovery_authorized():
-    """检查当前会话是否通过恢复模式验证且心跳未过期"""
+    """检查当前请求是否拥有有效的恢复模式授权（优先独立 cookie，兼容旧 session）"""
+    payload = _read_recovery_auth()
+    if payload:
+        return time.time() - payload["ts"] <= RECOVERY_HEARTBEAT_TIMEOUT
     if not session.get('recovery_authorized'):
         return False
     ts = session.get('recovery_ts')
@@ -3500,7 +3530,9 @@ def api_logout():
     if 'username' in session:
         audit_log(session['username'], "登出", "正常登出")
     session.clear()
-    return jsonify({"success":True})
+    resp = jsonify({"success":True})
+    _clear_recovery_auth_cookie(resp)
+    return resp
 
 @app.route('/api/user_info')
 @login_required
@@ -3756,7 +3788,9 @@ def api_verify_super_password():
         with recovery_lock:
             recovery_sessions[rid] = time.time()
         audit_log(session.get('username', 'Unknown'), "超级密码验证", "成功")
-        return jsonify({"success": True})
+        resp = jsonify({"success": True})
+        _set_recovery_auth_cookie(resp, rid)
+        return resp
     just_locked = add_super_pwd_fail(ip)
     audit_log(session.get('username', 'Unknown'), "超级密码验证", f"失败 (IP: {ip})", False)
     if just_locked:
@@ -3949,11 +3983,15 @@ def api_recovery_reboot():
 # ---------- 恢复模式：备份列表 ----------
 @app.route('/api/recovery/heartbeat')
 def api_recovery_heartbeat():
-    # HTTP heartbeat: refresh the recovery session timestamp (multi-worker safe)
+    # HTTP heartbeat: refresh the recovery timestamp (session + independent cookie, multi-worker safe)
     if not recovery_authorized():
         return jsonify({'ok': False}), 404
     session['recovery_ts'] = time.time()
-    return jsonify({'ok': True})
+    resp = jsonify({'ok': True})
+    payload = _read_recovery_auth()
+    if payload:
+        _set_recovery_auth_cookie(resp, payload['sid'])
+    return resp
 
 @app.route('/api/recovery/monitor')
 def api_recovery_monitor():
@@ -4225,8 +4263,11 @@ def set_winsize(fd, rows, cols):
     except: pass
 
 def _check_terminal_auth():
-    """检查当前 SocketIO 连接是否拥有有效的恢复模式授权"""
+    """检查当前 SocketIO 连接是否拥有有效的恢复模式授权（优先独立 cookie，兼容旧 session）"""
     try:
+        payload = _read_recovery_auth()
+        if payload:
+            return time.time() - payload["ts"] <= RECOVERY_HEARTBEAT_TIMEOUT
         if not session.get('recovery_authorized'):
             return False
         ts = session.get('recovery_ts')

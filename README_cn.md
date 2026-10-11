@@ -277,6 +277,7 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 ## 变更记录
 
 - **2026-10-11**：终端 WebSocket 403 修复（recovery 终端页缺少 CSRF meta → token 为空 → 握手被拒；终端页新增连接状态条）；顶部监控状态栏轮询连续失败 10 秒后显示红色 ⚠️ Error；gunicorn 25.3.0 → 26.2.0（26 已移除 eventlet worker），改用 gevent worker（gevent 26.9.0 + gevent-websocket 0.10.1），依赖/安装脚本/文档同步更新。
+- **2026-10-11（二）**：根治恢复模式间歇性 404——根因：`login_required` 每次请求都刷新 `session['last_activity']` 并重发 Set-Cookie，主页 3 秒轮询（/api/status、/api/stats）携带旧 cookie 的响应会覆盖掉超级密码验证刚写入的恢复授权字段，导致验证成功瞬间/数秒内 `/recovery`、`/recovery/shell` 随机 404。修复：恢复授权改为独立签名 cookie `recovery_auth`（验证签发、心跳续期、登出清除），登录态轮询无法覆盖；心跳窗口 30s→90s 抗移动网络抖动；`login_required` 的 last_activity 刷新节流为 60 秒/次
 - **2026-10-09（四）**：恢复模式 Shell 终端由 SocketIO 长轮询改为原生 WebSocket（`/terminal-ws`）——连接即打开 pty、断开即结束进程，实时双向交互；WebSocket 握手三重验证（恢复会话心跳 + Origin 同源 + CSRF token），多 worker 下的 404 与终端极慢问题一并解决
 - **2026-10-09（三）**：恢复模式监控数据同样改为普通 HTTP 轮询（`GET /api/recovery/monitor`），恢复模式页面彻底不依赖 SocketIO（SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，监控停止更新、监控栏显示 Error）；心跳超时后重新验证超级密码可稳定恢复访问
 - **2026-10-09（二）**：恢复模式心跳由 SocketIO 改为普通 HTTP 轮询——SocketIO 长轮询在 gunicorn 多 worker 下无粘性会话，心跳静默失效导致恢复会话 30 秒后过期（后续 `/recovery/*` 页面返回 404）；新增 `GET /api/recovery/heartbeat` 通过签名 cookie 续期 session 时间戳（跨 worker 生效）；SocketIO 仅保留实时监控推送
