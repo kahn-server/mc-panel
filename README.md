@@ -13,6 +13,7 @@
 - ⌨️ In-browser RCON console — pure-socket client, **no mcrcon binary**
 - 🔄 **Quick Restart** button + automatic restart after server-core upgrade
 - 🔐 HTTPS (self-signed) + audit log with real client IP (PROXY protocol)
+- 🔑 **FIDO2 / YubiKey login** — register one security key per account, sign in with a USB key on desktop or an NFC key on mobile (password + key tabs on the login page)
 - 🧩 Plugin manager, backup manager (auto-created backup dirs), server-jar manager (any file name)
 - 🌆 Embedded Cyberpunk MC Dashboard via in-page VNC (noVNC) — see below
 
@@ -40,6 +41,11 @@
   - screen/tmux launch command is asked by the installer (`MC_LAUNCH_CMD`, defaults to `start.sh` under MC_DIR or the first jar)
 - **Cyber-panel embedding**: view the Cyber dashboard live in the page (WebSocket proxy `/vnc-proxy` → local websockify :6080; websockify is managed by the `dashboard.sh` script)
 - **Audit log**: records real client IP (PROXY protocol passthrough), logins and command operations
+- **FIDO2 / security-key login (WebAuthn)**
+  - Register **one key per account** from your Profile dialog ("Register security key"); remove it anytime ("Remove key"). Not registering is fine — password login keeps working
+  - Login page has a **Password / Security Key** tab switch: pick Security Key, enter your username, then touch your USB key (YubiKey on desktop) or bring an NFC key close (mobile browser)
+  - Server-side verification with `python-fido2` (challenge + RP ID + origin + signature checked); credentials are stored per user in `users.json` (`webauthn` field, config auto-upgraded on load)
+  - Requires a **secure context (HTTPS)** — the panel already terminates TLS itself. `WEBAUTHN_RP_ID` defaults to the host you open the panel with; override with the env var (see below)
 - **HTTPS**: self-signed cert (gunicorn terminates TLS directly)
 
 ## Tech Stack
@@ -52,6 +58,7 @@
 | gunicorn | 26.2.0 | Production server (gevent worker, `proxy_protocol=True`) |
 | gevent | 26.9.0 | Coroutine worker (gunicorn 26 removed the eventlet worker) |
 | websockify | 0.13.0 | VNC → WebSocket (Cyber panel) |
+| fido2 | 1.2.0 | WebAuthn / FIDO2 server-side verification (YubiKey login) |
 | systemd | - | Service hosting + env injection (main unit) |
 
 ## Architecture
@@ -197,6 +204,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now mcpanel.service
 | `MC_SERVICE_NAME` | optional | MC systemd service / screen / tmux session name (**detected+confirmed by preinstall.sh**, default `minecraft`) |
 | `MC_LAUNCH_TYPE` | ✅ | MC management type: `systemd` / `screen` / `tmux`. **Injected by preinstall.sh after detection+confirm; the panel never probes itself**. Unset ⇒ panel cannot determine launch method |
 | `MC_LAUNCH_CMD` | optional | Launch command for screen/tmux (e.g. `bash start.sh`). Empty ⇒ auto-use `start.sh` or the first jar under MC_DIR |
+| `WEBAUTHN_RP_ID` | optional | WebAuthn relying-party ID for security-key login. Default: the hostname you open the panel with (port stripped). Set it explicitly if you always access via one fixed domain/IP |
 
 `SECRET_KEY` / `MCRCON_PASS` and all MC config are injected via `Environment=` in the **mcpanel.service main unit `[Service]` section** (preinstall.sh writes directly to the main unit). The code contains **no plaintext keys or hardcoded paths**. To change paths, edit the main unit, then `daemon-reload` + restart.
 
@@ -266,7 +274,8 @@ The panel footer has **two hidden triggers disguised as plain text**. Each requi
 ## Security Notes
 
 - Zero hardcoded keys: `SECRET_KEY` / `MCRCON_PASS` live only in the mcpanel.service main unit (root-readable)
-- Login rate limiting: Flask-Limiter + super-password IP limiting (5 failures locked for 24h)
+- Login rate limiting: Flask-Limiter + super-password IP limiting (5 failures locked for 24h); security-key failures also count toward the login fail counter
+- FIDO2 security keys: one key per account (config auto-upgraded); WebAuthn challenge + RP ID + origin + ECDSA signature are all verified server-side; a lost key can be removed with the account password
 - Plugin upload: path-traversal protection + file magic-number validation
 - Session cookie: signed with `SECRET_KEY`; rotating the key logs everyone out
 - Rotate `SECRET_KEY` periodically (one change = everyone re-logins)
@@ -286,6 +295,7 @@ The panel footer has **two hidden triggers disguised as plain text**. Each requi
 
 ## Changelog
 
+- **2026-10-15**: FIDO2 / YubiKey (WebAuthn) login added — Password/Security-Key tabs on the login page (USB key on desktop, NFC key on mobile); "Register security key" / "Remove key" in the Profile dialog; **one key per account**; server-side `python-fido2` verification (challenge/RP ID/origin/signature); `users.json` auto-upgraded with the `webauthn` field on load; failed key logins count toward the fail counter; `fido2`/`cbor2`/`cryptography` added to requirements (installed automatically by preinstall); `WEBAUTHN_RP_ID` env override; this README updated for both languages
 - **2026-10-11**: Terminal WebSocket 403 fixed (recovery shell page missing CSRF meta -> empty token -> handshake rejected; terminal page now shows a connection status bar); recovery monitor bar shows red ⚠️ Error after 10s of polling failure; gunicorn 25.3.0 -> 26.2.0 (eventlet worker removed in 26) -> gevent worker (gevent 26.9.0 + gevent-websocket 0.10.1), deps/preinstall/README updated.
 - **2026-10-11 (2)**: Root-caused intermittent recovery-mode 404 — `login_required` rewrote `session['last_activity']` on every request and re-sent Set-Cookie; home-page 3s polling (/api/status, /api/stats) with the pre-verify cookie overwrote the recovery authorization just written by super-password verify, causing random 404 on /recovery and /recovery/shell right after verification. Fix: recovery authorization moved to an independent signed cookie `recovery_auth` (issued by verify, renewed by heartbeat, cleared on logout) that polling cannot overwrite; heartbeat window 30s -> 90s for mobile-network jitter; `login_required` last_activity refresh throttled to once/60s
 - **2026-10-09 (4)**: Recovery-mode shell terminal moved from SocketIO long-polling to a native WebSocket (`/terminal-ws`). The terminal opens a pty on connect and kills the process on disconnect, with real-time two-way interaction; the WebSocket handshake is triple-validated (recovery session heartbeat + same-origin check + CSRF token). Multi-worker 404s and the painfully slow terminal (SocketIO polling is not sticky across workers) are resolved

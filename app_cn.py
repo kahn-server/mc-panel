@@ -308,6 +308,13 @@ def audit_log(username, action, details, success=True):
 
 # ---------- Flask 初始化 ----------
 app = Flask(__name__)
+
+@app.before_request
+def _reload_users_db():
+    """多 worker 下每个请求重读 users.json，保证各 worker 内存一致（创建/删除用户即时生效）。"""
+    global users_db
+    users_db = load_users()
+
 app.secret_key = SECRET_KEY
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
 socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*")
@@ -3584,7 +3591,7 @@ def admin_create_user():
     if not u or not p: return jsonify({"success":False,"message":"用户名和密码不能为空"}), 400
     if u in users_db: return jsonify({"success":False,"message":"用户名已存在"}), 400
     if r not in ['user','admin']: r='user'
-    users_db[u] = {"password_hash":generate_password_hash(p),"avatar":"/static/avatars/default_user.png","role":r}
+    users_db[u] = {"password_hash":generate_password_hash(p),"avatar":"/static/avatars/default_user.png","role":r,"webauthn":None}
     save_users(users_db)
     audit_log(session['username'], "创建用户", f"用户名: {u}, 角色: {r}")
     return jsonify({"success":True,"message":f"用户 {u} 创建成功"})

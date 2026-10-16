@@ -28,6 +28,11 @@
   - screen/tmux 的启动命令由安装脚本询问（`MC_LAUNCH_CMD`，默认沿用 MC_DIR 下的 `start.sh` 或第一个 jar）
 - **赛博面板嵌入**：网页内实时查看赛博仪表盘画面（`/vnc-proxy` WebSocket 代理 → 本地 websockify :6080，websockify 由 `dashboard.sh` 脚本管理）
 - **审计日志**：记录真实客户端 IP（PROXY protocol 透传）、登录与命令操作
+- **FIDO2 / 安全密钥登录（WebAuthn）**
+  - 每个账号可在个人资料页"注册安全密钥"**注册一个密钥**，随时可"移除密钥"；不注册也完全可用，密码登录照常
+  - 登录页有 **密码登录 / 密钥登录** 切换：选密钥登录、输入用户名后，电脑插上 USB 安全密钥（YubiKey）触摸一下，手机则把 NFC 密钥靠近即可
+  - 服务端使用 `python-fido2` 完整校验（challenge + RP ID + origin + ECDSA 签名）；凭证按用户存入 `users.json`（`webauthn` 字段，加载时配置自动升级）
+  - 需要 **HTTPS 安全上下文**（面板本身已启用 HTTPS）。`WEBAUTHN_RP_ID` 默认取你打开面板的主机名，也可用环境变量固定（见下）
 - **HTTPS**：自签名证书（gunicorn 直接 TLS 终止）
 
 ## 技术栈
@@ -40,6 +45,7 @@
 | gunicorn | 26.2.0 | 生产服务器（gevent worker，`proxy_protocol=True`） |
 | gevent | 26.9.0 | 协程 worker（gunicorn 26 已移除 eventlet worker） |
 | websockify | 0.13.0 | VNC → WebSocket（赛博面板嵌入） |
+| fido2 | 1.2.0 | WebAuthn / FIDO2 服务端校验（YubiKey 安全密钥登录） |
 | systemd | - | 服务托管 + 环境变量注入（主单元） |
 
 ## 架构
@@ -187,6 +193,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now mcpanel.service
 | `MC_SERVICE_NAME` | 可选 | MC 的 systemd 服务名 / screen / tmux 会话名（**由 preinstall.sh 检测确认后注入**，默认 `minecraft`） |
 | `MC_LAUNCH_TYPE` | ✅ | MC 管理方式：`systemd` / `screen` / `tmux`。**由 preinstall.sh 检测确认后注入；面板不再自行探测**。未设置时面板无法判断启动方式 |
 | `MC_LAUNCH_CMD` | 可选 | screen/tmux 类型的启动命令（如 `bash start.sh`）。留空自动用 MC_DIR 下 `start.sh` 或第一个 jar |
+| `WEBAUTHN_RP_ID` | 可选 | 安全密钥登录的 WebAuthn 依赖方 ID。默认取你打开面板的主机名（去端口）。若你总是通过固定域名/IP 访问，建议显式设置 |
 
 `SECRET_KEY` / `MCRCON_PASS` 及全部 MC 配置均由 **mcpanel.service 主单元 `[Service]` 段的 `Environment=` 注入**（preinstall.sh 直接写入主单元），代码中**不存在任何明文密钥与硬编码路径**。改路径只需改主单元后 `daemon-reload` + 重启。
 
@@ -256,7 +263,8 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 ## 安全说明
 
 - 密钥零硬编码：`SECRET_KEY` / `MCRCON_PASS` 仅存在于 mcpanel.service 主单元（root 可读）
-- 登录限流：Flask-Limiter + 超级密码 IP 限流（24h 窗口 5 次失败锁定）
+- 登录限流：Flask-Limiter + 超级密码 IP 限流（24h 窗口 5 次失败锁定）；安全密钥登录失败同样计入失败计数
+- FIDO2 安全密钥：每账号一个密钥（配置自动升级）；WebAuthn 的 challenge / RP ID / origin / ECDSA 签名均由服务端完整校验；密钥丢失可用账号密码登录后移除
 - 插件上传：路径越界防护 + 文件魔数校验
 - 会话 Cookie：`SECRET_KEY` 签名，更换密钥即全员下线
 - 建议定期轮换 `SECRET_KEY`（换一次，所有人重新登录）
@@ -276,6 +284,7 @@ remotePort = 8080    # 公网端口，按你的 frps 配置填写
 
 ## 变更记录
 
+- **2026-10-15**：新增 FIDO2 / YubiKey（WebAuthn）安全密钥登录——登录页增加 **密码登录 / 密钥登录** 切换（电脑 USB 密钥、手机 NFC 密钥）；个人资料弹窗新增"注册安全密钥 / 移除密钥"；**每账号一个密钥**；服务端 `python-fido2` 完整校验（challenge / RP ID / origin / ECDSA 签名）；`users.json` 加载时自动升级 `webauthn` 字段；密钥登录失败计入失败计数；requirements 新增 `fido2`/`cbor2`/`cryptography`（preinstall 自动安装）；新增 `WEBAUTHN_RP_ID` 环境变量；README 中英双版同步更新
 - **2026-10-11**：终端 WebSocket 403 修复（recovery 终端页缺少 CSRF meta → token 为空 → 握手被拒；终端页新增连接状态条）；顶部监控状态栏轮询连续失败 10 秒后显示红色 ⚠️ Error；gunicorn 25.3.0 → 26.2.0（26 已移除 eventlet worker），改用 gevent worker（gevent 26.9.0 + gevent-websocket 0.10.1），依赖/安装脚本/文档同步更新。
 - **2026-10-11（二）**：根治恢复模式间歇性 404——根因：`login_required` 每次请求都刷新 `session['last_activity']` 并重发 Set-Cookie，主页 3 秒轮询（/api/status、/api/stats）携带旧 cookie 的响应会覆盖掉超级密码验证刚写入的恢复授权字段，导致验证成功瞬间/数秒内 `/recovery`、`/recovery/shell` 随机 404。修复：恢复授权改为独立签名 cookie `recovery_auth`（验证签发、心跳续期、登出清除），登录态轮询无法覆盖；心跳窗口 30s→90s 抗移动网络抖动；`login_required` 的 last_activity 刷新节流为 60 秒/次
 - **2026-10-09（四）**：恢复模式 Shell 终端由 SocketIO 长轮询改为原生 WebSocket（`/terminal-ws`）——连接即打开 pty、断开即结束进程，实时双向交互；WebSocket 握手三重验证（恢复会话心跳 + Origin 同源 + CSRF token），多 worker 下的 404 与终端极慢问题一并解决

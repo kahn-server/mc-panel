@@ -11,3 +11,6 @@ gevent-websocket==0.10.1
 gunicorn==26.2.0
 websockify==0.13.0
 Pillow==12.3.0
+fido2==1.2.0
+cbor2==5.6.5
+cryptography==44.0.1
